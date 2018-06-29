@@ -7,7 +7,7 @@ end
 
 const SGDLR = 0.001
 
-Sgd(;lr = SGDLR, gclip = 0) = Sgd(lr, gclip)
+Sgd(;lr = SGDLR, gclip = 1) = Sgd(lr, gclip)
 
 mutable struct Momentum
     lr::Float64
@@ -16,7 +16,7 @@ mutable struct Momentum
     velocity::Vector{Float64}
 end
 
-Momentum(;lr = 0.001, gclip = 0, gamma = 0.9) = Momentum(lr, gclip, gamma, [])
+Momentum(;lr = 0.001, gclip = 1, gamma = 0.9) = Momentum(lr, gclip, gamma, [])
 
 mutable struct Rmsprop
     lr::Float64
@@ -26,7 +26,7 @@ mutable struct Rmsprop
     G::Vector{Float64}
 end
 
-Rmsprop(;lr = 0.001, gclip = 0, rho = 0.9, eps = 1e-6) = Rmsprop(lr, gclip, rho, eps, [])
+Rmsprop(;lr = 0.001, gclip = 1, rho = 0.9, eps = 1e-6) = Rmsprop(lr, gclip, rho, eps, [])
 
 mutable struct Adam
     lr::Float64
@@ -39,7 +39,7 @@ mutable struct Adam
     scndm::Vector{Float64}
 end
 
-Adam(;lr = 0.001, gclip = 0, beta1 = 0.9, beta2 = 0.999, eps = 1e-8) = 
+Adam(;lr = 0.001, gclip = 1, beta1 = 0.9, beta2 = 0.999, eps = 1e-8) = 
     Adam(lr, gclip, beta1, beta2, eps, 0, [], [])
 
 function update!(w, g, p::Sgd)
