@@ -7,7 +7,5 @@ function ptp(x)
     xmax - xmin
 end
 
-call(f, xs...) = f(xs...)
-
 runall(f) = f
-runall(fs::AbstractVector) = () -> foreach(call, fs)
+runall(fs::AbstractVector) = (xs...) -> last([f(xs...) for f in fs])
