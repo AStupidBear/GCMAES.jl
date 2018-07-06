@@ -281,7 +281,7 @@ function save(opt::CMAESOpt)
 end
 
 function cmaes(f::Function, x0, σ0, lo, hi; pool = workers(), maxfevals = 0, 
-                        maxiter = 0, resume = "false", cb = () -> (), o...)
+                        maxiter = 0, resume = "false", cb = (xs...) -> (), o...)
     cb = runall(cb)
     opt = CMAESOpt(f, x0, σ0, lo, hi; o...)
     maxfevals = (maxfevals == 0) ? 1e3 * length(x0)^2 : maxfevals
@@ -294,7 +294,7 @@ function cmaes(f::Function, x0, σ0, lo, hi; pool = workers(), maxfevals = 0,
         update_parameters!(opt, iter)
         trace_state(opt, iter, fcount)
         terminate(opt) && (status = 0; break)
-        cb() == :stop && break
+        cb(opt.xmin) == :stop && break
         # if terminate(opt) opt, iter = restart(opt), 0 end
     end
     return opt.xmin, opt.fmin, status
