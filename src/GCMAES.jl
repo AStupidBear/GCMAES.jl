@@ -2,7 +2,7 @@ __precompile__(true)
 
 module GCMAES
 
-using JLD
+using JLD, FileIO
 
 include("util.jl")
 include("constraint.jl")
