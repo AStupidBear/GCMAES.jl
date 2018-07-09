@@ -256,8 +256,8 @@ function trace_state(opt::CMAESOpt, iter, fcount)
 end
 
 function load!(opt::CMAESOpt, resume)
-    if resume != "false" && isfile(opt.file) 
-        d = JLD.load(opt.file)
+    if resume != "false" && isfile(opt.file)
+        d = load(FileIO.File(FileIO.format"JLD", opt.file))
         for s in keys(d)
             isdefined(opt, Symbol(s)) && if get(d, "N", opt.N) != opt.N
                 s ∈ ["x̄", "σ"] && setfield!(opt, Symbol(s), d[s])
