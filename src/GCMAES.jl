@@ -287,13 +287,13 @@ function cmaes(f::Function, x0, σ0, lo, hi; pool = workers(), maxfevals = 0,
     maxfevals = (maxfevals == 0) ? 1e3 * length(x0)^2 : maxfevals
     maxfevals = maxiter != 0 ? maxiter * opt.λ : maxfevals
     load!(opt, resume)
-    fcount = iter = 0; status = 1
+    fcount = iter = 0; status = 0
     while fcount < maxfevals
         iter += 1; fcount += opt.λ
         update_candidates!(opt, pool)
         update_parameters!(opt, iter)
         trace_state(opt, iter, fcount)
-        terminate(opt) && (status = 0; break)
+        terminate(opt) && (status = 1; break)
         cb(opt.xmin) == :stop && break
         # if terminate(opt) opt, iter = restart(opt), 0 end
     end
@@ -315,7 +315,7 @@ function optimize(f, x0, σ0, lo, hi; pool = workers(), restarts = 1, λ = 0, o.
         x, y, statuses = hcat(res...)
         fmin, index = findmin(y)
         xmin = x[:, index]
-        status = Int(all(x -> x == 1, statuses))
+        status = Int(any(x -> x == 1, statuses))
     else
         xmin, fmin, status = cmaes(f, x0, σ0, lo, hi; pool = pool, λ = λ, o...)
     end
