@@ -249,8 +249,8 @@ function trace_state(opt::CMAESOpt, iter, fcount)
     elapsed_time = time() - opt.last_report_time
     save(opt)
     # display some information every iteration
-    @printf("time: %s iter: %d  elapsed-time: %.2f fcount: %d  fval: %2.2e  fmin: %2.2e  axis-ratio: %2.2e \n",
-            now(), iter, elapsed_time, fcount, opt.arfitness[1], opt.fmin, maximum(opt.D) / minimum(opt.D) )
+    @printf("time: %s iter: %d  elapsed-time: %.2f fcount: %d  fval: %2.2e  fmin: %2.2e  axis-ratio: %2.2e free-mem: %.2fGB\n",
+            now(), iter, elapsed_time, fcount, opt.arfitness[1], opt.fmin, maximum(opt.D) / minimum(opt.D), Sys.free_memory() / 1024^3)
     opt.last_report_time = time()
     return nothing
 end
@@ -280,7 +280,7 @@ function save(opt::CMAESOpt)
     end
 end
 
-function cmaes(f::Function, x0, σ0, lo, hi; pool = workers(), maxfevals = 0, 
+function minimize(f::Function, x0, σ0, lo, hi; pool = workers(), maxfevals = 0, 
                         maxiter = 0, resume = "false", cb = (xs...) -> (), o...)
     cb = runall(cb)
     opt = CMAESOpt(f, x0, σ0, lo, hi; o...)
@@ -300,32 +300,8 @@ function cmaes(f::Function, x0, σ0, lo, hi; pool = workers(), maxfevals = 0,
     return opt.xmin, opt.fmin, status
 end
 
-function optimize(f, x0, σ0, lo, hi; pool = workers(), restarts = 1, λ = 0, o...)
-    λ = λ == 0 ? round(Int, 4 + 3log(length(x0))) : λ
-    pop_pools = minibatch(pool, λ) # population pools
-    restarts = max(restarts, length(pool) ÷ λ)
-    if restarts > 1
-        head_pool = first.(pop_pools)
-        fun = i -> begin
-            x0 = (i == 1 || rand() < 0.5) ? x0 : sample(lo, hi)
-            idx = findfirst(head_pool, myid())
-            cmaes(f, x0, σ0, lo, hi; pool = pop_pools[idx], λ = λ, o...)
-        end
-        res = pmap(WorkerPool(head_pool), fun, 1:restarts)
-        x, y, statuses = hcat(res...)
-        fmin, index = findmin(y)
-        xmin = x[:, index]
-        status = Int(any(x -> x == 1, statuses))
-    else
-        xmin, fmin, status = cmaes(f, x0, σ0, lo, hi; pool = pool, λ = λ, o...)
-    end
-    return xmin, fmin, status
-end
-
-const minimize = optimize
-
 function maximize(f, args...; kwargs...)
-    xmin, fmin, status = optimize(x -> .-f(x), args...; kwargs...)
+    xmin, fmin, status = minimize(x -> .-f(x), args...; kwargs...)
     return xmin, -fmin, status
 end
 
