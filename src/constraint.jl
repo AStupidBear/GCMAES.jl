@@ -19,7 +19,7 @@ transform(c::RangeConstraint, x) = ifelse.(x .< c.lo, c.lo, ifelse.(x .> c.hi, c
 
 function getpenalty(c::RangeConstraint, x)
     xt = transform(c, x)
-    penalty = exp(c.λ * maximum(abs.(x .- xt) ./ (c.hi .- c.lo))) - 1
+    penalty = c.λ * maximum(abs.(x .- xt) ./ (c.hi .- c.lo))
 end
 
 # NormConstraint norm(x, p) <= maxnorm
@@ -36,7 +36,7 @@ end
 
 function getpenalty(c::NormConstraint, x)
     xt = transform(c, x)
-    penalty = exp(c.λ * vecnorm(x .- xt, c.p) / vecnorm(xt, c.p)) - 1
+    penalty = c.λ * vecnorm(x .- xt, c.p) / vecnorm(xt, c.p)
 end
 
 # MaxNormConstraint
@@ -68,7 +68,7 @@ function getpenalty(c::MaxNormConstraint, x)
     for ind in c.weight_inds
         w = x[ind]
         wt = transform(c.norm_constraint, w)
-        penalty += exp(c.λ * vecnorm(w .- wt) / vecnorm(wt)) - 1
+        penalty += c.λ * vecnorm(w .- wt) / vecnorm(wt)
     end
     return penalty
 end
