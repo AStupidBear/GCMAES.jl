@@ -2,7 +2,7 @@ abstract type Constraint end
 
 transform(c::Constraint, x) = x
 
-getpenalty(c::Constraint, x) = 0
+getpenalty(c::Constraint, x) = zero(eltype(x))
 
 # NoConstraint
 mutable struct NoConstraint <: Constraint

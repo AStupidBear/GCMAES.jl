@@ -41,6 +41,7 @@ mutable struct CMAESOpt{F, C, O}
     ary::Matrix{Float64}
     arz::Matrix{Float64}
     arfitness::Vector{Float64}
+    arpenalty::Vector{Float64}
     arindex::Vector{Int}
     # recordings
     xmin::Vector{Float64}
@@ -89,7 +90,7 @@ function CMAESOpt(f, x0, σ0, lo, hi; λ = 0, equal_best = 10^10, constraint = N
     χₙ = sqrt(N) * (1 -1 / 4N + 1 / 21N^2)  # expectation of  ||N(0,I)|| == norm(randn(N,1))
     # init a few things
     arx, ary, arz = zeros(N, λ), zeros(N, λ), zeros(N, λ)
-    arfitness = zeros(λ);  arindex = zeros(λ)
+    arfitness = zeros(λ); arpenalty = zeros(λ); arindex = zeros(λ)
     @printf("%i-%i CMA-ES\n", λ, μ)
     # gradient
     argrad = zeros(N, λ)
@@ -105,7 +106,7 @@ function CMAESOpt(f, x0, σ0, lo, hi; λ = 0, equal_best = 10^10, constraint = N
             λ, μ, w, μeff,
             σ, cc, cσ, c1, cμ, dσ,
             x̄, pc, pσ, D, B, BD, C, χₙ,
-            arx, ary, arz, arfitness, arindex, 
+            arx, ary, arz, arfitness, arpenalty, arindex, 
             xmin, fmin, Float64[], Float64[], Float64[],
             ν, argrad, arx′, gradopt, gradopts,
             time(), "CMAES.jld", equal_best)
@@ -123,7 +124,7 @@ function update_candidates!(opt::CMAESOpt, pool)
        opt.arfitness[k] = results[k][1]
        opt.argrad[:, k] = results[k][2]
     end
-    opt.arfitness .+= getpenalty.(opt.constraint, arx_cols)
+    opt.arpenalty .=  getpenalty.(opt.constraint, arx_cols)
     # sort by fitness and compute weighted mean into x̄
     sortperm!(opt.arindex, opt.arfitness)
     opt.arfitness = opt.arfitness[opt.arindex] # minimization
@@ -249,8 +250,8 @@ function trace_state(opt::CMAESOpt, iter, fcount)
     elapsed_time = time() - opt.last_report_time
     save(opt)
     # display some information every iteration
-    @printf("time: %s iter: %d  elapsed-time: %.2f fcount: %d  fval: %2.2e  fmin: %2.2e  axis-ratio: %2.2e free-mem: %.2fGB\n",
-            now(), iter, elapsed_time, fcount, opt.arfitness[1], opt.fmin, maximum(opt.D) / minimum(opt.D), Sys.free_memory() / 1024^3)
+    @printf("time: %s iter: %d  elapsed-time: %.2f fcount: %d  fval: %2.2e  fmin: %2.2e  penalty: %2.2e  axis-ratio: %2.2e free-mem: %.2fGB\n",
+            now(), iter, elapsed_time, fcount, opt.arfitness[1], opt.fmin, median(opt.arpenalty), maximum(opt.D) / minimum(opt.D), Sys.free_memory() / 1024^3)
     opt.last_report_time = time()
     return nothing
 end
