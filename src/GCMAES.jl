@@ -289,6 +289,7 @@ function minimize(f::Function, x0, σ0, lo, hi; pool = workers(), maxfevals = 0,
     load!(opt, resume)
     fcount = iter = 0; status = 0
     while fcount < maxfevals
+        @everywhere gc(true)
         iter += 1; fcount += opt.λ
         update_candidates!(opt, pool)
         update_parameters!(opt, iter)
