@@ -53,7 +53,7 @@ MaxNormConstraint(weight_inds, maxnorm::Real, allnorm, λ) =
 function transform(c::MaxNormConstraint, x)
     y = copy(x)
     if c.allnorm
-        ind = vcat(c.weight_inds)
+        ind = vcat(c.weight_inds...)
         setindex!(y, transform(c.norm_constraint, x[ind]), ind)
     else
         for ind in c.weight_inds
