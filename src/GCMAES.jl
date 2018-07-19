@@ -125,6 +125,7 @@ function update_candidates!(opt::CMAESOpt, pool)
        opt.argrad[:, k] = results[k][2]
     end
     opt.arpenalty .=  getpenalty.(opt.constraint, arx_cols)
+    opt.arfitness .+= opt.arpenalty
     # sort by fitness and compute weighted mean into x̄
     sortperm!(opt.arindex, opt.arfitness)
     opt.arfitness = opt.arfitness[opt.arindex] # minimization
