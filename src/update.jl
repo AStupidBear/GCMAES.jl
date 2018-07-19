@@ -77,14 +77,8 @@ function update!(w, g, p::Rmsprop)
 end
 
 function gclip!(g, gclip)
-    if gclip == 0
-        g
-    else
-        gnorm = vecnorm(g)
-        if gnorm <= gclip
-            g
-        else
-            scale!(gclip / gnorm, g)
-        end
-    end
+    gclip == 0 && return g
+    gnorm = vecnorm(g)
+    gnorm > gclip && scale!(gclip / gnorm, g)
+    return g
 end
