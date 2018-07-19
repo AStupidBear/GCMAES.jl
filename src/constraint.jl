@@ -36,7 +36,7 @@ end
 
 function getpenalty(c::NormConstraint, x)
     xt = transform(c, x)
-    penalty = c.λ * vecnorm(x .- xt, c.p) / vecnorm(xt, c.p)
+    penalty = c.λ * vecnorm(x .- xt, c.p) / (vecnorm(xt, c.p) + eps(eltype(x)))
 end
 
 # MaxNormConstraint
@@ -69,7 +69,7 @@ function getpenalty(c::MaxNormConstraint, x)
     for ind in inds
         w = x[ind]
         wt = transform(c.norm_constraint, w)
-        penalty += c.λ * vecnorm(w .- wt) / vecnorm(wt)
+        penalty += c.λ * vecnorm(w .- wt) / (vecnorm(wt) + eps(penalty))
     end
     return penalty
 end
