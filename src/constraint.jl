@@ -65,7 +65,8 @@ end
 
 function getpenalty(c::MaxNormConstraint, x)
     penalty = zero(eltype(x))
-    for ind in c.weight_inds
+    inds = c.allnorm ? [vcat(c.weight_inds...)] : c.weight_inds
+    for ind in inds
         w = x[ind]
         wt = transform(c.norm_constraint, w)
         penalty += c.λ * vecnorm(w .- wt) / vecnorm(wt)
