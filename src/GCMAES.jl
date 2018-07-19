@@ -257,19 +257,13 @@ function trace_state(opt::CMAESOpt, iter, fcount)
 end
 
 function load!(opt::CMAESOpt, resume)
-    if resume != "false" && isfile(opt.file)
-        d = load(File(format"JLD", opt.file))
-        for s in keys(d)
-            isdefined(opt, Symbol(s)) && if get(d, "N", opt.N) != opt.N
-                s ∈ ["x̄", "σ"] && setfield!(opt, Symbol(s), d[s])
-            else
-                blocker1 = ["xmin", "fmin", "fmins", "fmeds", "feqls", 
-                            "constraint", "gradopt", "gradopts"]
-                blocker2 = ["last_report_time", "equal_best"]
-                blocker = resume == "full" ? blocker2 : vcat(blocker1, blocker2)
-                s ∉ blocker && setfield!(opt, Symbol(s), d[s])
-            end
-        end
+    (resume == "false" || !isfile(opt.file)) && return
+    d = load(File(format"JLD", opt.file))
+    get(d, "N", opt.N) != opt.N && return
+    loadvars = ["σ", "cc", "cσ", "c1", "cμ", "dσ", "x̄", "pc", "pσ", "D", "B", "BD", "C", "χₙ"]
+    resume == "full" && append!(loadvars, ["xmin", "fmin", "fmins", "fmeds", "feqls", "gradopt", "gradopts"])
+    for s in loadvars
+        setfield!(opt, Symbol(s), get(d, s, getfield(opt, Symbol(s))))
     end
 end
 
@@ -282,7 +276,7 @@ function save(opt::CMAESOpt)
 end
 
 function minimize(f::Function, x0, σ0, lo, hi; pool = workers(), maxfevals = 0, 
-                        maxiter = 0, resume = "false", cb = (xs...) -> (), o...)
+            gcitr = true, maxiter = 0, resume = "false", cb = (xs...) -> (), o...)
     cb = runall(cb)
     opt = CMAESOpt(f, x0, σ0, lo, hi; o...)
     maxfevals = (maxfevals == 0) ? 1e3 * length(x0)^2 : maxfevals
@@ -290,7 +284,7 @@ function minimize(f::Function, x0, σ0, lo, hi; pool = workers(), maxfevals = 0,
     load!(opt, resume)
     fcount = iter = 0; status = 0
     while fcount < maxfevals
-        @everywhere gc(true)
+        gcitr && @everywhere gc(true)
         iter += 1; fcount += opt.λ
         update_candidates!(opt, pool)
         update_parameters!(opt, iter)
