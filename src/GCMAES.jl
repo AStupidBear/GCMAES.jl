@@ -62,7 +62,7 @@ mutable struct CMAESOpt{F, C, O}
 end
 
 function CMAESOpt(f, x0, σ0, lo, hi; λ = 0, equal_best = 10^10, constraint = NoConstraint(), 
-                            grad = true, ν = 0, lr = 1e-3, gclip = 0.5, gradopt = :Sgd, o...)
+                            grad = false, ν = 0, lr = 1e-3, gclip = 0.5, gradopt = :Sgd, o...)
     if grad == false
         ν = 0
         g = f
@@ -249,7 +249,6 @@ end
 
 function trace_state(opt::CMAESOpt, iter, fcount)
     elapsed_time = time() - opt.last_report_time
-    save(opt)
     # display some information every iteration
     @printf("time: %s iter: %d  elapsed-time: %.2f fcount: %d  fval: %2.2e  fmin: %2.2e  penalty: %2.2e  axis-ratio: %2.2e free-mem: %.2fGB\n",
             now(), iter, elapsed_time, fcount, opt.arfitness[1], opt.fmin, median(opt.arpenalty), maximum(opt.D) / minimum(opt.D), Sys.free_memory() / 1024^3)
@@ -277,9 +276,9 @@ function save(opt::CMAESOpt)
 end
 
 function minimize(f::Function, x0, σ0, lo, hi; pool = workers(), maxfevals = 0, 
-            gcitr = false, maxiter = 0, resume = "false", cb = (xs...) -> (), o...)
-    cb = runall(cb)
+                gcitr = false, maxiter = 0, resume = "false", cb = (xs...) -> (), o...)
     opt = CMAESOpt(f, x0, σ0, lo, hi; o...)
+    cb = runall([throttle(x -> save(opt), 60), cb])
     maxfevals = (maxfevals == 0) ? 1e3 * length(x0)^2 : maxfevals
     maxfevals = maxiter != 0 ? maxiter * opt.λ : maxfevals
     load!(opt, resume)
@@ -290,8 +289,8 @@ function minimize(f::Function, x0, σ0, lo, hi; pool = workers(), maxfevals = 0,
         update_candidates!(opt, pool)
         update_parameters!(opt, iter)
         trace_state(opt, iter, fcount)
-        terminate(opt) && (status = 1; break)
         cb(opt.xmin) == :stop && break
+        terminate(opt) && (status = 1; break)
         # if terminate(opt) opt, iter = restart(opt), 0 end
     end
     return opt.xmin, opt.fmin, status

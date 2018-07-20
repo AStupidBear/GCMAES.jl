@@ -13,7 +13,7 @@ end
 end
 
 N = 2000; x0, σ0, lo, hi = 0.3ones(N), 0.2, fill(-5.12, N), fill(5.12, N)
-xmin, fmin, = GCMAES.minimize(rastrigin, x0, σ0, lo, hi; grad = false, maxiter = 3000)
-xmin, fmin, = GCMAES.minimize(rastrigin′, x0, σ0, lo, hi; grad = true, maxiter = 50, ν = 2)
+xmin, fmin, = GCMAES.minimize(rastrigin, x0, σ0, lo, hi; maxiter = 3000)
+xmin, fmin, = GCMAES.minimize(rastrigin′, x0, σ0, lo, hi; maxiter = 50, grad = true, ν = 2)
 
 rm("CMAES.jld")
