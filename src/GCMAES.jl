@@ -277,7 +277,7 @@ function save(opt::CMAESOpt)
 end
 
 function minimize(f::Function, x0, σ0, lo, hi; pool = workers(), maxfevals = 0, 
-            gcitr = true, maxiter = 0, resume = "false", cb = (xs...) -> (), o...)
+            gcitr = false, maxiter = 0, resume = "false", cb = (xs...) -> (), o...)
     cb = runall(cb)
     opt = CMAESOpt(f, x0, σ0, lo, hi; o...)
     maxfevals = (maxfevals == 0) ? 1e3 * length(x0)^2 : maxfevals
