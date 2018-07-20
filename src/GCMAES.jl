@@ -249,9 +249,10 @@ end
 
 function trace_state(opt::CMAESOpt, iter, fcount)
     elapsed_time = time() - opt.last_report_time
+    gradrank = opt.ν > 0 ? 100 * count(opt.arindex[1:opt.ν] .<= opt.ν) / opt.ν : 0
     # display some information every iteration
-    @printf("time: %s iter: %d  elapsed-time: %.2f fcount: %d  fval: %2.2e  fmin: %2.2e  penalty: %2.2e  axis-ratio: %2.2e free-mem: %.2fGB\n",
-            now(), iter, elapsed_time, fcount, opt.arfitness[1], opt.fmin, median(opt.arpenalty), maximum(opt.D) / minimum(opt.D), Sys.free_memory() / 1024^3)
+    @printf("time: %s iter: %d  elapsed-time: %.2f fcount: %d  fval: %2.2e  fmin: %2.2e  gradrank: %d%%  penalty: %2.2e  axis-ratio: %2.2e free-mem: %.2fGB\n",
+            now(), iter, elapsed_time, fcount, opt.arfitness[1], opt.fmin, gradrank, median(opt.arpenalty), maximum(opt.D) / minimum(opt.D), Sys.free_memory() / 1024^3)
     opt.last_report_time = time()
     return nothing
 end
