@@ -24,7 +24,7 @@ end
 
 # NormConstraint norm(x, p) <= maxnorm
 mutable struct NormConstraint{T} <: Constraint
-    p::Int
+    p::Int # p-norm
     maxnorm::T
     λ::T # penalty scaling factor
 end
@@ -44,11 +44,10 @@ mutable struct MaxNormConstraint{T1, T2} <: Constraint
     weight_inds::Vector{T1}
     norm_constraint::NormConstraint{T2}
     allnorm::Bool # true: use all weight indices for transform
-    λ::T2 # penalty scaling factor
 end
 
-MaxNormConstraint(weight_inds, maxnorm::Real, allnorm, λ) =  
-    MaxNormConstraint(weight_inds, NormConstraint(2, maxnorm, λ), allnorm, λ)
+MaxNormConstraint(weight_inds, maxnorm::Real, λ, allnorm) =  
+    MaxNormConstraint(weight_inds, NormConstraint(2, maxnorm, λ), allnorm)
 
 function transform(c::MaxNormConstraint, x)
     y = copy(x)
@@ -67,9 +66,23 @@ function getpenalty(c::MaxNormConstraint, x)
     penalty = zero(eltype(x))
     inds = c.allnorm ? [vcat(c.weight_inds...)] : c.weight_inds
     for ind in inds
-        w = x[ind]
-        wt = transform(c.norm_constraint, w)
-        penalty += c.λ * vecnorm(w .- wt) / (vecnorm(wt) + eps(penalty))
+        penalty += getpenalty(c.norm_constraint, x[ind])
     end
     return penalty
 end
+
+mutable struct NormPenalty{T} <: Constraint
+    p::Int # p-norm
+    λ::T # penalty scaling factor
+end
+
+getpenalty(c::NormPenalty, x) =  c.λ * vecnorm(x, c.p)
+
+mutable struct MaxNormPenalty{T1, T2} <: Constraint
+    weight_inds::Vector{T1}
+    norm_penalty::NormPenalty{T2}
+end
+
+MaxNormPenalty(weight_inds, p, λ) = MaxNormPenalty(weight_inds, NormPenalty(p, λ))
+
+getpenalty(c::MaxNormPenalty, x) = getpenalty(c.norm_penalty, x[vcat(c.weight_inds...)])
