@@ -19,7 +19,7 @@ transform(c::RangeConstraint, x) = ifelse.(x .< c.lo, c.lo, ifelse.(x .> c.hi, c
 
 function getpenalty(c::RangeConstraint, x)
     xt = transform(c, x)
-    penalty = c.λ * maximum(abs.(x .- xt) ./ (c.hi .- c.lo))
+    penalty = c.λ * maximum(abs.(x .- xt))
 end
 
 # NormConstraint norm(x, p) <= maxnorm
@@ -36,7 +36,7 @@ end
 
 function getpenalty(c::NormConstraint, x)
     xt = transform(c, x)
-    penalty = c.λ * vecnorm(x .- xt, c.p) / (vecnorm(xt, c.p) + eps(eltype(x)))
+    penalty = c.λ * vecnorm(x .- xt, c.p)
 end
 
 # MaxNormConstraint
@@ -71,18 +71,19 @@ function getpenalty(c::MaxNormConstraint, x)
     return penalty
 end
 
-mutable struct NormPenalty{T} <: Constraint
+mutable struct LpPenalty{T} <: Constraint
     p::Int # p-norm
     λ::T # penalty scaling factor
+    θ::T # penalty margin margin
 end
 
-getpenalty(c::NormPenalty, x) =  c.λ * vecnorm(x, c.p)
+getpenalty(c::LpPenalty, x) =  c.λ * max(0, vecnorm(x, c.p) - θ)^c.p
 
-mutable struct MaxNormPenalty{T1, T2} <: Constraint
+mutable struct LpWeightPenalty{T1, T2} <: Constraint
     weight_inds::Vector{T1}
-    norm_penalty::NormPenalty{T2}
+    lp_penalty::LpPenalty{T2}
 end
 
-MaxNormPenalty(weight_inds, p, λ) = MaxNormPenalty(weight_inds, NormPenalty(p, λ))
+LpWeightPenalty(weight_inds, p, λ, θ) = LpWeightPenalty(weight_inds, LpPenalty(p, λ, θ))
 
-getpenalty(c::MaxNormPenalty, x) = getpenalty(c.norm_penalty, x[vcat(c.weight_inds...)])
+getpenalty(c::LpWeightPenalty, x) = getpenalty(c.lp_penalty, x[vcat(c.weight_inds...)])
