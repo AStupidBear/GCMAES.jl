@@ -76,7 +76,7 @@ mutable struct LpPenalty{T} <: Constraint
     θ::T # penalty margin margin
 end
 
-getpenalty(c::LpPenalty, x) =  c.λ * max(0, vecnorm(x, c.p) - θ)^c.p
+getpenalty(c::LpPenalty, x) =  c.λ * max(0, vecnorm(x, c.p) - c.θ)^c.p
 
 mutable struct LpWeightPenalty{T1, T2} <: Constraint
     weight_inds::Vector{T1}
