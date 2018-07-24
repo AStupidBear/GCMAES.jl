@@ -22,16 +22,16 @@ function getpenalty(c::RangeConstraint, x)
     penalty = c.λ * maximum(abs.(x .- xt))
 end
 
-# NormConstraint norm(x, p) <= maxnorm
+# NormConstraint norm(x, p) <= θ
 mutable struct NormConstraint{T} <: Constraint
     p::Int # p-norm
-    maxnorm::T
+    θ::T # max norm
     λ::T # penalty scaling factor
 end
 
 function transform(c::NormConstraint, x)
     n = norm(x, c.p)
-    n > c.maxnorm ? x ./ n .* c.maxnorm : x
+    n > c.θ ? x ./ n .* c.θ : x
 end
 
 function getpenalty(c::NormConstraint, x)
@@ -46,8 +46,7 @@ mutable struct MaxNormConstraint{T1, T2} <: Constraint
     allnorm::Bool # true: use all weight indices for transform
 end
 
-MaxNormConstraint(weight_inds, maxnorm::Real, λ, allnorm) =  
-    MaxNormConstraint(weight_inds, NormConstraint(2, maxnorm, λ), allnorm)
+MaxNormConstraint(weight_inds, θ::Real, λ, allnorm) = MaxNormConstraint(weight_inds, NormConstraint(2, θ, λ), allnorm)
 
 function transform(c::MaxNormConstraint, x)
     y = copy(x)
