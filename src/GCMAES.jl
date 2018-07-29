@@ -260,7 +260,7 @@ end
 function load!(opt::CMAESOpt, resume)
     (resume == "false" || !isfile(opt.file)) && return
     fid = jldopen(opt.file, "r")
-    get(d, "N", opt.N) != opt.N && return
+    read(fid, "N") != opt.N && return
     loadvars = ["σ", "cc", "cσ", "c1", "cμ", "dσ", "x̄", "pc", "pσ", "D", "B", "BD", "C", "χₙ"]
     resume == "full" && append!(loadvars, ["xmin", "fmin", "fmins", "fmeds", "feqls", "gradopt", "gradopts"])
     for s in loadvars ∩ names(fid)
