@@ -260,20 +260,22 @@ end
 function load!(opt::CMAESOpt, resume)
     (resume == "false" || !isfile(opt.file)) && return
     d = load(File(format"JLD", opt.file))
+    fid = jldopen(opt.file, "r")
     get(d, "N", opt.N) != opt.N && return
     loadvars = ["σ", "cc", "cσ", "c1", "cμ", "dσ", "x̄", "pc", "pσ", "D", "B", "BD", "C", "χₙ"]
     resume == "full" && append!(loadvars, ["xmin", "fmin", "fmins", "fmeds", "feqls", "gradopt", "gradopts"])
-    for s in loadvars
-        setfield!(opt, Symbol(s), get(d, s, getfield(opt, Symbol(s))))
+    for s in loadvars ∩ names(fid)
+        setfield!(opt, Symbol(s), read(fid, s))
     end
+    close(fid)
 end
 
 function save(opt::CMAESOpt)
-    JLD.jldopen(opt.file, "w") do fid
-        for s in fieldnames(opt)
-            s != :f && write(fid, string(s), getfield(opt, s))            
-        end
+    fid = JLD.jldopen(opt.file, "w")
+    for s in fieldnames(opt)
+        s != :f && write(fid, string(s), getfield(opt, s))            
     end
+    close(fid)
 end
 
 function minimize(f::Function, x0, σ0, lo, hi; pool = workers(), maxfevals = 0, 
