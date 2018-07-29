@@ -259,7 +259,6 @@ end
 
 function load!(opt::CMAESOpt, resume)
     (resume == "false" || !isfile(opt.file)) && return
-    d = load(File(format"JLD", opt.file))
     fid = jldopen(opt.file, "r")
     get(d, "N", opt.N) != opt.N && return
     loadvars = ["σ", "cc", "cσ", "c1", "cμ", "dσ", "x̄", "pc", "pσ", "D", "B", "BD", "C", "χₙ"]
