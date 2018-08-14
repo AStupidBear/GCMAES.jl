@@ -1,5 +1,7 @@
 abstract type Constraint end
 
+getpenalty(cs::Array{Constraint}) = sum(getpenalty, cs)
+
 transform(c::Constraint, x) = x
 
 getpenalty(c::Constraint, x) = zero(eltype(x))
