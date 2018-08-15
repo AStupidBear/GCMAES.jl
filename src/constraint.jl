@@ -2,7 +2,7 @@ abstract type Constraint end
 
 getpenalty(cs::Array{<:Constraint}) = sum(getpenalty, cs)
 
-transform(c::Constraint, x) = x
+transform(c::Union{Constraint, Array{<:Constraint}}, x) = x
 
 getpenalty(c::Constraint, x) = zero(eltype(x))
 
