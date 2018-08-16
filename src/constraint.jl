@@ -1,8 +1,6 @@
 abstract type Constraint end
 
-getpenalty(cs::Array{<:Constraint}, x) = sum(c -> getpenalty(c, x), cs)
-
-transform(c::Union{Constraint, Array{<:Constraint}}, x) = x
+transform(c::Constraint, x) = x
 
 getpenalty(c::Constraint, x) = zero(eltype(x))
 
@@ -88,3 +86,11 @@ end
 LpWeightPenalty(weight_inds, p, λ, θ) = LpWeightPenalty(weight_inds, LpPenalty(p, λ, θ))
 
 getpenalty(c::LpWeightPenalty, x) = getpenalty(c.lp_penalty, x[vcat(c.weight_inds...)])
+
+mutable struct MultiConstraints <: Constraint
+    constrains::Tuple
+end
+
+MultiConstraints(cs::Constraint...) = MultiConstraints(cs)
+
+getpenalty(c::MultiConstraints, x) = sum(c -> getpenalty(c, x), c.constrains)
