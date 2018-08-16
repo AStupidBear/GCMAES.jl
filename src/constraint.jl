@@ -1,6 +1,6 @@
 abstract type Constraint end
 
-getpenalty(cs::Array{<:Constraint}) = sum(getpenalty, cs)
+getpenalty(cs::Array{<:Constraint}, x) = sum(c -> getpenalty(c, x), cs)
 
 transform(c::Union{Constraint, Array{<:Constraint}}, x) = x
 
