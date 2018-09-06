@@ -61,8 +61,8 @@ mutable struct CMAESOpt{F, C, O}
     equal_best::Int
 end
 
-function CMAESOpt(f, x0, σ0, lo, hi; λ = 0, equal_best = 10^10, constraint = NoConstraint(), 
-                            grad = false, ν = 0, lr = 1e-3, gclip = 0.5, gradopt = :Sgd, o...)
+function CMAESOpt(f, x0, σ0, lo = -ones(x0), hi = ones(x0); λ = 0, equal_best = 10^10, grad = false,
+                    constraint = NoConstraint(), ν = 0, lr = 1e-3, gclip = 0.5, gradopt = :Sgd, o...)
     if grad == false
         ν = 0
         g = f
