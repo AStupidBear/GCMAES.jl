@@ -1,6 +1,8 @@
 abstract type Constraint end
 
-transform(c::Constraint, x) = x
+transform!(c::Constraint, x) = x
+
+transform(c::Constraint, x) = transform!(c, copy(x))
 
 getpenalty(c::Constraint, x) = zero(eltype(x))
 
@@ -15,7 +17,7 @@ mutable struct RangeConstraint{T} <: Constraint
     λ::T # penalty scaling factor
 end
 
-transform(c::RangeConstraint, x) = ifelse.(x .< c.lo, c.lo, ifelse.(x .> c.hi, c.hi, x))
+transform!(c::RangeConstraint, x) = clamp!(x, c.lo, c.hi)
 
 function getpenalty(c::RangeConstraint, x)
     xt = transform(c, x)
@@ -29,9 +31,12 @@ mutable struct NormConstraint{T} <: Constraint
     λ::T # penalty scaling factor
 end
 
-function transform(c::NormConstraint, x)
+function transform!(c::NormConstraint, x)
     n = norm(x, c.p)
-    n > c.θ ? x ./ n .* c.θ : x
+    if n > c.θ
+        scale!(x, c.θ / n)
+    end
+    return x
 end
 
 function getpenalty(c::NormConstraint, x)
@@ -48,17 +53,16 @@ end
 
 MaxNormConstraint(weight_inds, θ::Real, λ, allnorm) = MaxNormConstraint(weight_inds, NormConstraint(2, θ, λ), allnorm)
 
-function transform(c::MaxNormConstraint, x)
-    y = copy(x)
+function transform!(c::MaxNormConstraint, x)
     if c.allnorm
         ind = vcat(c.weight_inds...)
-        setindex!(y, transform(c.norm_constraint, x[ind]), ind)
+        transform!(c.norm_constraint, view(x, ind))
     else
         for ind in c.weight_inds
-            setindex!(y, transform(c.norm_constraint, x[ind]), ind)
+            transform(c.norm_constraint, view(x, ind))
         end
     end
-    return y
+    return x
 end
 
 function getpenalty(c::MaxNormConstraint, x)
