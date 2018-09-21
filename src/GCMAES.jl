@@ -79,7 +79,7 @@ function CMAESOpt(f, g, x0, σ0, lo = -ones(x0), hi = ones(x0);
     χₙ = sqrt(N) * (1 -1 / 4N + 1 / 21N^2)   # expectation of  ||N(0,I)|| == norm(randn(N,1))
     # init a few things
     arx, ary, arz = zeros(N, λ), zeros(N, λ), zeros(N, λ)
-    arfitness = zeros(λ); arpenalty = zeros(λ); arindex = zeros(λ)
+    arfitness, arpenalty, arindex = zeros(λ), zeros(λ), ones(λ)
     @printf("%i-%i CMA-ES\n", λ, μ)
     # gradient
     F, G, S = typeof(f), typeof(g), typeof(constraint)
@@ -125,15 +125,20 @@ function linesearch(f, x0, Δ)
     return xs[i], fx
 end
 
+function update_mean!(opt::CMAESOpt)
+    opt.x̄, fx = linesearch(opt.f, opt.x̄, -opt.g(opt.x̄))
+    if fx < opt.fmin copy!(opt.xmin, opt.x̄); opt.fmin = fx end
+    transform!(opt.constraint, opt.x̄)
+end
+
 function update_parameters!(opt::CMAESOpt, iter)
     indμ = opt.arindex[1:opt.μ]
     # calculate new x̄, this is selection and recombination
     x̄old = copy(opt.x̄)                                # for speed up of Eq. (2) and (3)
     A_mul_B!(opt.x̄, opt.arx[:, indμ], opt.w)
-    # use parallel line search to determin the best α s.t. x += α * Δ achieves minimum
-    opt.x̄, fx = linesearch(opt.f, opt.x̄, -opt.g(opt.x̄))
-    if fx < opt.fmin copy!(opt.xmin, opt.x̄); opt.fmin = fx end
     transform!(opt.constraint, opt.x̄)
+    # use parallel line search to determin the best α s.t. x += α * Δ achieves minimum
+    update_mean!(opt)
     # calculate new z̄
     z̄ = opt.arz[:, indμ] * opt.w                       # == D^-1 * B' * (x̄ - x̄old) / σ
     # cumulation: update evolution paths
@@ -266,6 +271,11 @@ function minimize(fg, x0, args...; maxfevals = 0, gcitr = false,
     fcount = iter = 0; status = 0
     while fcount < maxfevals
         iter += 1; fcount += opt.λ
+        if opt.λ == 1
+            update_mean!(opt)
+            trace_state(opt, iter, fcount)
+            continue
+        end
         update_candidates!(opt)
         update_parameters!(opt, iter)
         trace_state(opt, iter, fcount)
