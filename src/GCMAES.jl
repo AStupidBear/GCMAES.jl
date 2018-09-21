@@ -286,11 +286,11 @@ function minimize(f::Function, x0, args...; pool = workers(), maxfevals = 0, gci
     load!(opt, resume)
     fcount = iter = 0; status = 0
     while fcount < maxfevals
-        gcitr && @everywhere gc(true)
         iter += 1; fcount += opt.λ
         update_candidates!(opt, pool)
         update_parameters!(opt, iter)
         trace_state(opt, iter, fcount)
+        gcitr && @everywhere gc(true)
         cb(opt.xmin) == :stop && break
         terminate(opt) && (status = 1; break)
         # if terminate(opt) opt, iter = restart(opt), 0 end
