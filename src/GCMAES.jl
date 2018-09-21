@@ -55,8 +55,8 @@ mutable struct CMAESOpt{F, G, S}
     equal_best::Int
 end
 
-function CMAESOpt(f, g, x0, σ0, lo = -ones(x0), hi = ones(x0); λ = 0, 
-                equal_best = 10^10, constraint = NoConstraint(), o...)
+function CMAESOpt(f, g, x0, σ0, lo = -ones(x0), hi = ones(x0); 
+        λ = 0, equal_best = 10^10, constraint = NoConstraint())
     N, x̄, xmin, fmin, σ = length(x0), x0, x0, f(x0), σ0
     # strategy parameter setting: selection
     λ = λ == 0 ? round(Int, 4 + 3log(N)) : λ
@@ -257,7 +257,7 @@ function minimize(fg, x0, args...; maxfevals = 0, gcitr = false,
                   maxiter = 0, resume = "false", cb = [], kwargs...)
     f, g = fg isa Tuple ? fg : (fg, zeros)
     opt = CMAESOpt(f, g, x0, args...; kwargs...)
-    cb = runall([throttle(x -> save(opt), 60), cb...])
+    cb = runall([throttle(x -> save(opt), 60); cb])
     maxfevals = (maxfevals == 0) ? 1e3 * length(x0)^2 : maxfevals
     maxfevals = maxiter != 0 ? maxiter * opt.λ : maxfevals
     load!(opt, resume)
@@ -277,7 +277,7 @@ end
 
 function maximize(fg, args...; kwargs...)
     f, g = fg isa Tuple ? fg : (fg, zeros)
-    xmin, fmin, status = minimize(x -> -f(x), x -> -g(x), args...; kwargs...)
+    xmin, fmin, status = minimize((x -> -f(x), x -> -g(x)), args...; kwargs...)
     return xmin, -fmin, status
 end
 
