@@ -116,7 +116,9 @@ function update_candidates!(opt::CMAESOpt)
 end
 
 function linesearch(f, x0, Δ)
-    norm(Δ) == 0 && return x0, typemax(eltype(x0))
+    nrm = vecnorm(Δ)
+    nrm == 0 && return x0, typemax(eltype(x0))
+    scale!(Δ, 1 / nrm)
     αs = [0.0; 2.0.^(2 - nworkers():0)]
     xs = [x0 .+ α .* Δ for α in αs]
     fx, i = findmin(pmap(f, xs))
