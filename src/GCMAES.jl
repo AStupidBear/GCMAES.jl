@@ -264,19 +264,12 @@ function minimize(fg, x0, args...; maxfevals = 0, gcitr = false,
     fcount = iter = 0; status = 0
     while fcount < maxfevals
         iter += 1; fcount += opt.λ
-        println(1)
         @time update_candidates!(opt)
-        println(2)
         @time update_parameters!(opt, iter)
-        println(3)
         @time trace_state(opt, iter, fcount)
-        println(4)
         @time gcitr && @everywhere gc(true)
-        println(5)
         @time cb(opt.xmin) == :stop && break
-        println(6)
         @time terminate(opt) && (status = 1; break)
-        println(iter)
         # if terminate(opt) opt, iter = restart(opt), 0 end
     end
     return opt.xmin, opt.fmin, status
