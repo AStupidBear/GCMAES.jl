@@ -9,11 +9,10 @@ end
 @everywhere begin
     rastrigin(x) = 10length(x) + sum(x.^2 .- 10 .* cos.(2π .* x))
     ∇rastrigin(x) =  ForwardDiff.gradient(rastrigin, x)
-    rastrigin′ = x -> (rastrigin(x), ∇rastrigin(x))
 end
 
 N = 2000; x0, σ0, lo, hi = 0.3ones(N), 0.2, fill(-5.12, N), fill(5.12, N)
-xmin, fmin, = GCMAES.minimize(rastrigin, x0, σ0, lo, hi; maxiter = 3000)
-xmin, fmin, = GCMAES.minimize(rastrigin′, x0, σ0, lo, hi; maxiter = 50, grad = true, ν = 2)
+xmin, fmin, = GCMAES.minimize(rastrigin, x0, σ0, lo, hi; maxiter = 200);
+xmin, fmin, = GCMAES.minimize((rastrigin, ∇rastrigin), x0, σ0, lo, hi; maxiter = 200);
 
 rm("CMAES.jld")

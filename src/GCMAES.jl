@@ -6,16 +6,16 @@ using JLD, FileIO
 
 include("util.jl")
 include("constraint.jl")
-include("update.jl")
 
-mutable struct CMAESOpt{F, C, O}
+mutable struct CMAESOpt{F, G, S}
     # fixed hyper-parameters
     f::F
+    g::G
     N::Int
     σ0::Float64
     lo::Vector{Float64}
     hi::Vector{Float64}
-    constraint::C
+    constraint::S
     # strategy parameter setting: selection
     λ::Int
     μ::Int
@@ -49,95 +49,62 @@ mutable struct CMAESOpt{F, C, O}
     fmins::Vector{Float64} # history of best fitness
     fmeds::Vector{Float64} # history of median fitness
     feqls::Vector{Float64} # history of equal fitness
-    # gradient parameters
-    ν::Int # number of gradients to save
-    argrad::Matrix{Float64}
-    arx′::Matrix{Float64}
-    gradopt::O
-    gradopts::Vector{O}
     # report
     last_report_time::Float64
     file::String
     equal_best::Int
 end
 
-function CMAESOpt(f, x0, σ0, lo = -ones(x0), hi = ones(x0); λ = 0, equal_best = 10^10, grad = false,
-                    constraint = NoConstraint(), ν = 0, lr = 1e-3, gclip = 0.5, gradopt = :Sgd, o...)
-    if grad == false
-        ν = 0
-        g = f
-        f = x -> (y = g(x); (y, zeros(x)))
-    end
-    N, x̄, xmin, (fmin,), σ = length(x0), x0, x0, f(x0), σ0
+function CMAESOpt(f, g, x0, σ0, lo = -ones(x0), hi = ones(x0); λ = 0, 
+                equal_best = 10^10, constraint = NoConstraint(), o...)
+    N, x̄, xmin, fmin, σ = length(x0), x0, x0, f(x0), σ0
     # strategy parameter setting: selection
     λ = λ == 0 ? round(Int, 4 + 3log(N)) : λ
-    μ = λ ÷ 2                    # number of parents/points for recombination
-    w = log(μ + 1/2) .- log.(1:μ) # μXone array for weighted recombination
-    normalize!(w, 1)             # normalize recombination w array
-    μeff = 1 / sum(abs2, w)     # variance-effectiveness of sum w_i x_i
+    μ = λ ÷ 2                              # number of parents/points for recombination
+    w = log(μ + 1/2) .- log.(1:μ)          # μXone array for weighted recombination
+    normalize!(w, 1)                       # normalize recombination w array
+    μeff = 1 / sum(abs2, w)                # variance-effectiveness of sum w_i x_i
     # strategy parameter setting: adaptation
-    cc = 4 / (N + 4) # time constant for cumulation for C
-    cσ = (μeff + 2) / (N + μeff + 3)  # t-const for cumulation for σ control
-    c1 = 2 / ((N + 1.3)^2 + μeff)    # learning rate for rank-one update of C
+    cc = 4 / (N + 4)                       # time constant for cumulation for C
+    cσ = (μeff + 2) / (N + μeff + 3)       # t-const for cumulation for σ control
+    c1 = 2 / ((N + 1.3)^2 + μeff)          # learning rate for rank-one update of C
     cμ = min(1 - c1, 2(μeff - 2 + 1 / μeff) / ((N + 2)^2 + μeff) )   # and for rank-μ update
     dσ = 1 + 2 * max(0, sqrt((μeff - 1) / (N + 1)) - 1) + cσ # damping for σ, usually close to 1
     # initialize dynamic (internal) strategy parameters and constants
-    pc = zeros(N); pσ = zeros(N)   # evolution paths for C and σ
-    D = fill(σ, N)                # diagonal matrix D defines the scaling
-    B = eye(N, N)                 # B defines the coordinate system
-    BD = B .* reshape(D, 1, N)    # B*D for speed up only
-    C = diagm(D.^2)                    # covariance matrix == BD*(BD)'
-    χₙ = sqrt(N) * (1 -1 / 4N + 1 / 21N^2)  # expectation of  ||N(0,I)|| == norm(randn(N,1))
+    pc = zeros(N); pσ = zeros(N)            # evolution paths for C and σ
+    D = fill(σ, N)                          # diagonal matrix D defines the scaling
+    B = eye(N, N)                           # B defines the coordinate system
+    BD = B .* reshape(D, 1, N)              # B*D for speed up only
+    C = diagm(D.^2)                        # covariance matrix == BD*(BD)'
+    χₙ = sqrt(N) * (1 -1 / 4N + 1 / 21N^2)   # expectation of  ||N(0,I)|| == norm(randn(N,1))
     # init a few things
     arx, ary, arz = zeros(N, λ), zeros(N, λ), zeros(N, λ)
     arfitness = zeros(λ); arpenalty = zeros(λ); arindex = zeros(λ)
     @printf("%i-%i CMA-ES\n", λ, μ)
     # gradient
-    argrad = zeros(N, λ)
-    arx′ = zeros(N, ν)
-    gradopt = gradopt == :Sgd ? Sgd(lr = lr, gclip = gclip) :
-              gradopt == :Adam ? Adam(lr = lr, gclip = gclip) :
-              gradopt == :Rmsprop ? Rmsprop(lr = lr, gclip = gclip) : 
-              error("unknown optimizer")
-    gradopts = [deepcopy(gradopt) for k in 1:ν]
-    F, C′, O = typeof(f), typeof(constraint), typeof(gradopt)
-    return CMAESOpt{F, C′, O}(
-            f, N, σ0, lo, hi, constraint,
+    F, G, S = typeof(f), typeof(g), typeof(constraint)
+    return CMAESOpt{F, G, S}(
+            f, g, N, σ0, lo, hi, constraint,
             λ, μ, w, μeff,
             σ, cc, cσ, c1, cμ, dσ,
             x̄, pc, pσ, D, B, BD, C, χₙ,
             arx, ary, arz, arfitness, arpenalty, arindex, 
             xmin, fmin, Float64[], Float64[], Float64[],
-            ν, argrad, arx′, gradopt, gradopts,
             time(), "CMAES.jld", equal_best)
 end
 
-function update_candidates!(opt::CMAESOpt, pool)
+function update_candidates!(opt::CMAESOpt)
     # generate and evaluate λ offspring
     randn!(opt.arz) # resample
     opt.ary = opt.BD * opt.arz
     opt.arx .= opt.x̄ .+ opt.σ .* opt.ary
-    length(opt.fmins) > 0 && (opt.arx[:, 1:opt.ν] = opt.arx′)
     arx_cols = [opt.arx[:, k] for k in 1:opt.λ]
-    results = pmap(WorkerPool(pool), opt.f, arx_cols)
-    for k in 1:opt.λ
-       opt.arfitness[k] = results[k][1]
-       opt.argrad[:, k] = results[k][2]
-    end
+    opt.arfitness .= pmap(opt.f, arx_cols)
     opt.arpenalty .=  getpenalty.(opt.constraint, arx_cols)
     opt.arfitness .+= opt.arpenalty
     # sort by fitness and compute weighted mean into x̄
     sortperm!(opt.arindex, opt.arfitness)
     opt.arfitness = opt.arfitness[opt.arindex] # minimization
-    # SGD with grad clipping for the best μ candidates
-    indν = opt.arindex[1:opt.ν]
-    opt.gradopts = [1 <= i <= opt.ν ? opt.gradopts[i] : deepcopy(opt.gradopt) for i in indν]
-    for k in 1:opt.ν
-        w = view(opt.arx′, :, k)
-        g = view(opt.argrad, :, indν[k])
-        p = opt.gradopts[k]
-        update!(w, g, p)
-    end
     # store the best candidate
     if opt.arfitness[1] < opt.fmin
         opt.xmin, opt.fmin = opt.arx[:, opt.arindex[1]], opt.arfitness[1]
@@ -148,33 +115,43 @@ function update_candidates!(opt::CMAESOpt, pool)
     push!(opt.feqls, feql)
 end
 
+function linesearch(f, x0, Δ)
+    norm(Δ) == 0 && return x0, typemax(eltype(x0))
+    αs = [0.0; 2.0.^(2 - nworkers():0)]
+    xs = [x0 .+ α .* Δ for α in αs]
+    fx, i = findmin(pmap(f, xs))
+    return xs[i], fx
+end
+
 function update_parameters!(opt::CMAESOpt, iter)
     indμ = opt.arindex[1:opt.μ]
     # calculate new x̄, this is selection and recombination
-    x̄old = copy(opt.x̄) # for speed up of Eq. (2) and (3)
-    opt.x̄ = transform(opt.constraint, opt.arx[:, indμ] * opt.w)
-    z̄ = opt.arz[:, indμ] * opt.w # ==D^-1*B'*(x̄-x̄old)/σ
+    x̄old = copy(opt.x̄)                                # for speed up of Eq. (2) and (3)
+    A_mul_B!(opt.x̄, opt.arx[:, indμ], opt.w)
+    # use parallel line search to determin the best α s.t. x += α * Δ achieves minimum
+    opt.x̄, fx = linesearch(opt.f, opt.x̄, -opt.g(opt.x̄))
+    if fx < opt.fmin copy!(opt.xmin, opt.x̄); opt.fmin = fx end
+    transform!(opt.constraint, opt.x̄)
+    # calculate new z̄
+    z̄ = opt.arz[:, indμ] * opt.w                       # == D^-1 * B' * (x̄ - x̄old) / σ
     # cumulation: update evolution paths
-    BLAS.gemv!('N', sqrt(opt.cσ * (2 - opt.cσ) * opt.μeff), opt.B, z̄, 1 - opt.cσ, opt.pσ)
-    #  i.e. pσ = (1 - cσ) * pσ + sqrt(cσ * (2 - cσ) * μeff) * (B * z̄) # Eq. (4)
+    BLAS.gemv!('N', sqrt(opt.cσ * (2 - opt.cσ) * opt.μeff), opt.B, z̄, 1 - opt.cσ, opt.pσ)  # i.e. pσ = (1 - cσ) * pσ + sqrt(cσ * (2 - cσ) * μeff) * (B * z̄) Eq.(4)
     hsig = norm(opt.pσ) / sqrt(1 - (1 - opt.cσ)^2iter) / opt.χₙ < 1.4 + 2 / (opt.N + 1)
     BLAS.scale!(opt.pc, 1 - opt.cc)
-    BLAS.axpy!(hsig * sqrt(opt.cc * (2 - opt.cc) * opt.μeff) / opt.σ, opt.x̄ - x̄old, opt.pc)
-    # i.e. pc = (1 - cc) * pc + (hsig * sqrt(cc * (2 - cc) * μeff) / σ) * (x̄ - x̄old)
+    BLAS.axpy!(hsig * sqrt(opt.cc * (2 - opt.cc) * opt.μeff) / opt.σ, opt.x̄ - x̄old, opt.pc) # i.e. pc = (1 - cc) * pc + (hsig * sqrt(cc * (2 - cc) * μeff) / σ) * (x̄ - x̄old)
     # adapt covariance matrix C
-    scale!(opt.C, (1 - opt.c1 - opt.cμ + (1 - hsig) * opt.c1 * opt.cc * (2 - opt.cc))) # discard old C
-    BLAS.syr!('U', opt.c1, opt.pc, opt.C) # rank 1 update C += c1 * pc * pc'
-    artmp = opt.ary[:, indμ]  # μ difference vectors
+    scale!(opt.C, (1 - opt.c1 - opt.cμ + (1 - hsig) * opt.c1 * opt.cc * (2 - opt.cc)))      # discard old C
+    BLAS.syr!('U', opt.c1, opt.pc, opt.C)               # rank 1 update C += c1 * pc * pc'
+    artmp = opt.ary[:, indμ]                            # μ difference vectors
     artmp = (artmp .* reshape(opt.w, 1, opt.μ)) * artmp.'
     BLAS.axpy!(opt.cμ, artmp, opt.C)
     # adapt step size σ
     opt.σ *= exp((norm(opt.pσ) / opt.χₙ - 1) * opt.cσ / opt.dσ)  #Eq. (5)
     # update B and D from C
-    # if counteval - eigeneval > λ / (c1 + cμ) / N / 10  # to achieve O(N^2)
-    if mod(iter, 1 / (opt.c1 + opt.cμ) / opt.N / 10) < 1
-        (opt.D, opt.B) = eig(Symmetric(opt.C, :U)) # eigen decomposition, B==normalized eigenvectors
-        opt.D .= sqrt.(opt.D)                   # D contains standard deviations now
-        opt.BD .= opt.B .* reshape(opt.D, 1, opt.N)     # O(n^2)
+    if mod(iter, 1 / (opt.c1 + opt.cμ) / opt.N / 10) < 1 # if counteval - eigeneval > λ / (c1 + cμ) / N / 10  # to achieve O(N^2)
+        (opt.D, opt.B) = eig(Symmetric(opt.C, :U))       # eigen decomposition, B == normalized eigenvectors
+        opt.D .= sqrt.(opt.D)                            # D contains standard deviations now
+        opt.BD .= opt.B .* reshape(opt.D, 1, opt.N)      # O(n^2)
     end
 end
 
@@ -249,10 +226,9 @@ end
 
 function trace_state(opt::CMAESOpt, iter, fcount)
     elapsed_time = time() - opt.last_report_time
-    gradrank = opt.ν > 0 ? 100 * count(opt.arindex[1:opt.ν] .<= opt.ν) / opt.ν : 0
     # display some information every iteration
-    @printf("time: %s iter: %d  elapsed-time: %.2f fcount: %d  fval: %2.2e  fmin: %2.2e  gradrank: %d%%  vecnorm:%2.2e  penalty: %2.2e  axis-ratio: %2.2e free-mem: %.2fGB\n",
-            now(), iter, elapsed_time, fcount, opt.arfitness[1], opt.fmin, gradrank, vecnorm(opt.arx[:, opt.arindex[1]]), opt.arpenalty[opt.arindex[1]], maximum(opt.D) / minimum(opt.D), Sys.free_memory() / 1024^3)
+    @printf("time: %s iter: %d  elapsed-time: %.2f fcount: %d  fval: %2.2e  fmin: %2.2e  vecnorm:%2.2e  penalty: %2.2e  axis-ratio: %2.2e free-mem: %.2fGB\n",
+            now(), iter, elapsed_time, fcount, opt.arfitness[1], opt.fmin, vecnorm(opt.arx[:, opt.arindex[1]]), opt.arpenalty[opt.arindex[1]], maximum(opt.D) / minimum(opt.D), Sys.free_memory() / 1024^3)
     opt.last_report_time = time()
     return nothing
 end
@@ -272,34 +248,43 @@ end
 function save(opt::CMAESOpt)
     fid = JLD.jldopen(opt.file, "w")
     for s in fieldnames(opt)
-        s != :f && write(fid, string(s), getfield(opt, s))            
+        s != :f && s != :g && write(fid, string(s), getfield(opt, s))            
     end
     close(fid)
 end
 
-function minimize(f::Function, x0, args...; pool = workers(), maxfevals = 0, gcitr = false, 
-                  maxiter = 0, resume = "false", cb = (xs...) -> (), kwargs...)
-    opt = CMAESOpt(f, x0, args...; kwargs...)
-    cb = runall([throttle(x -> save(opt), 60), cb])
+function minimize(fg, x0, args...; maxfevals = 0, gcitr = false, 
+                  maxiter = 0, resume = "false", cb = [], kwargs...)
+    f, g = fg isa Tuple ? fg : (fg, zeros)
+    opt = CMAESOpt(f, g, x0, args...; kwargs...)
+    cb = runall([throttle(x -> save(opt), 60), cb...])
     maxfevals = (maxfevals == 0) ? 1e3 * length(x0)^2 : maxfevals
     maxfevals = maxiter != 0 ? maxiter * opt.λ : maxfevals
     load!(opt, resume)
     fcount = iter = 0; status = 0
     while fcount < maxfevals
         iter += 1; fcount += opt.λ
-        update_candidates!(opt, pool)
-        update_parameters!(opt, iter)
-        trace_state(opt, iter, fcount)
-        gcitr && @everywhere gc(true)
-        cb(opt.xmin) == :stop && break
-        terminate(opt) && (status = 1; break)
+        println(1)
+        @time update_candidates!(opt)
+        println(2)
+        @time update_parameters!(opt, iter)
+        println(3)
+        @time trace_state(opt, iter, fcount)
+        println(4)
+        @time gcitr && @everywhere gc(true)
+        println(5)
+        @time cb(opt.xmin) == :stop && break
+        println(6)
+        @time terminate(opt) && (status = 1; break)
+        println(iter)
         # if terminate(opt) opt, iter = restart(opt), 0 end
     end
     return opt.xmin, opt.fmin, status
 end
 
-function maximize(f, args...; kwargs...)
-    xmin, fmin, status = minimize(x -> .-f(x), args...; kwargs...)
+function maximize(fg, args...; kwargs...)
+    f, g = fg isa Tuple ? fg : (fg, zeros)
+    xmin, fmin, status = minimize(x -> -f(x), x -> -g(x), args...; kwargs...)
     return xmin, -fmin, status
 end
 
