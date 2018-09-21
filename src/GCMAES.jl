@@ -60,7 +60,7 @@ function CMAESOpt(f, g, x0, σ0, lo = -ones(x0), hi = ones(x0);
     N, x̄, xmin, fmin, σ = length(x0), x0, x0, f(x0), σ0
     # strategy parameter setting: selection
     λ = λ == 0 ? round(Int, 4 + 3log(N)) : λ
-    μ = λ ÷ 2                              # number of parents/points for recombination
+    μ = ceil(Int, λ / 2)                   # number of parents/points for recombination
     w = log(μ + 1/2) .- log.(1:μ)          # μXone array for weighted recombination
     normalize!(w, 1)                       # normalize recombination w array
     μeff = 1 / sum(abs2, w)                # variance-effectiveness of sum w_i x_i
