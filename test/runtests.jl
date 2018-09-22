@@ -1,10 +1,6 @@
-using GCMAES, ForwardDiff
-
-@static if VERSION < v"0.7.0-DEV.2005"
-    using Base.Test
-else
-    using Test
-end
+using GCMAES, ForwardDiff, Compat
+using Compat.Test
+using Compat.Distributed
 
 @everywhere begin
     rastrigin(x) = 10length(x) + sum(x.^2 .- 10 .* cos.(2π .* x))

@@ -41,7 +41,7 @@ end
 
 function getpenalty(c::NormConstraint, x)
     xt = transform(c, x)
-    penalty = c.λ * vecnorm(x .- xt, c.p)
+    penalty = c.λ * Compat.norm(x .- xt, c.p)
 end
 
 # MaxNormConstraint
@@ -80,7 +80,7 @@ mutable struct LpPenalty{T} <: Constraint
     θ::T # penalty margin margin
 end
 
-getpenalty(c::LpPenalty, x) =  c.λ * max(0, vecnorm(x, c.p) - c.θ)^c.p
+getpenalty(c::LpPenalty, x) =  c.λ * max(0, Compat.norm(x, c.p) - c.θ)^c.p
 
 mutable struct LpWeightPenalty{T1, T2} <: Constraint
     weight_inds::Vector{T1}

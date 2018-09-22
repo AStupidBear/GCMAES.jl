@@ -2,7 +2,13 @@ __precompile__(true)
 
 module GCMAES
 
-using BSON
+using BSON, Compat
+using Compat.Printf
+using Compat.Distributed
+using Compat.LinearAlgebra
+using Compat.Dates
+using Compat.Random
+using Compat.Statistics
 
 include("util.jl")
 include("constraint.jl")
@@ -73,9 +79,9 @@ function CMAESOpt(f, g, x0, σ0, lo = -ones(x0), hi = ones(x0);
     # initialize dynamic (internal) strategy parameters and constants
     pc = zeros(N); pσ = zeros(N)            # evolution paths for C and σ
     D = fill(σ, N)                          # diagonal matrix D defines the scaling
-    B = eye(N, N)                           # B defines the coordinate system
+    B = Matrix(I, N, N)                           # B defines the coordinate system
     BD = B .* reshape(D, 1, N)              # B*D for speed up only
-    C = diagm(D.^2)                        # covariance matrix == BD*(BD)'
+    C = diagm(0 => D.^2)                        # covariance matrix == BD*(BD)'
     χₙ = sqrt(N) * (1 -1 / 4N + 1 / 21N^2)   # expectation of  ||N(0,I)|| == norm(randn(N,1))
     # init a few things
     arx, ary, arz = zeros(N, λ), zeros(N, λ), zeros(N, λ)
@@ -100,7 +106,7 @@ function update_candidates!(opt::CMAESOpt)
     opt.arx .= opt.x̄ .+ opt.σ .* opt.ary
     arx_cols = [opt.arx[:, k] for k in 1:opt.λ]
     opt.arfitness .= pmap(opt.f, arx_cols)
-    opt.arpenalty .=  getpenalty.(opt.constraint, arx_cols)
+    opt.arpenalty .=  getpenalty.(Ref(opt.constraint), arx_cols)
     opt.arfitness .+= opt.arpenalty
     # sort by fitness and compute weighted mean into x̄
     sortperm!(opt.arindex, opt.arfitness)
@@ -116,7 +122,7 @@ function update_candidates!(opt::CMAESOpt)
 end
 
 function linesearch(f, x0, Δ)
-    nrm = vecnorm(Δ)
+    nrm = norm(Δ)
     nrm == 0 && return x0, typemax(eltype(x0))
     scale!(Δ, 1 / nrm)
     αs = [0.0; 2.0.^(2 - nworkers():0)]
@@ -150,7 +156,7 @@ function update_parameters!(opt::CMAESOpt, iter)
     scale!(opt.C, (1 - opt.c1 - opt.cμ + (1 - hsig) * opt.c1 * opt.cc * (2 - opt.cc)))      # discard old C
     BLAS.syr!('U', opt.c1, opt.pc, opt.C)               # rank 1 update C += c1 * pc * pc'
     artmp = opt.ary[:, indμ]                            # μ difference vectors
-    artmp = (artmp .* reshape(opt.w, 1, opt.μ)) * artmp.'
+    artmp = (artmp .* reshape(opt.w, 1, opt.μ)) * transpose(artmp)
     BLAS.axpy!(opt.cμ, artmp, opt.C)
     # adapt step size σ
     opt.σ *= exp((norm(opt.pσ) / opt.χₙ - 1) * opt.cσ / opt.dσ)  #Eq. (5)
@@ -234,8 +240,8 @@ end
 function trace_state(opt::CMAESOpt, iter, fcount)
     elapsed_time = time() - opt.last_report_time
     # display some information every iteration
-    @printf("time: %s iter: %d  elapsed-time: %.2f fcount: %d  fval: %2.2e  fmin: %2.2e  vecnorm:%2.2e  penalty: %2.2e  axis-ratio: %2.2e free-mem: %.2fGB\n",
-            now(), iter, elapsed_time, fcount, opt.arfitness[1], opt.fmin, vecnorm(opt.arx[:, opt.arindex[1]]), opt.arpenalty[opt.arindex[1]], maximum(opt.D) / minimum(opt.D), Sys.free_memory() / 1024^3)
+    @printf("time: %s iter: %d  elapsed-time: %.2f fcount: %d  fval: %2.2e  fmin: %2.2e  norm:%2.2e  penalty: %2.2e  axis-ratio: %2.2e free-mem: %.2fGB\n",
+            now(), iter, elapsed_time, fcount, opt.arfitness[1], opt.fmin, norm(opt.arx[:, opt.arindex[1]]), opt.arpenalty[opt.arindex[1]], maximum(opt.D) / minimum(opt.D), Sys.free_memory() / 1024^3)
     opt.last_report_time = time()
     return nothing
 end
