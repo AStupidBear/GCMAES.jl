@@ -7,50 +7,50 @@ using JLD, FileIO
 include("util.jl")
 include("constraint.jl")
 
-mutable struct CMAESOpt{F, G, S}
+mutable struct CMAESOpt{T, F, G, S}
     # fixed hyper-parameters
     f::F
     g::G
     N::Int
-    σ0::Float64
-    lo::Vector{Float64}
-    hi::Vector{Float64}
+    σ0::T
+    lo::Vector{T}
+    hi::Vector{T}
     constraint::S
     # strategy parameter setting: selection
     λ::Int
     μ::Int
-    w::Vector{Float64}
-    μeff::Float64
+    w::Vector{T}
+    μeff::T
     # strategy parameter setting: adaptation
-    σ::Float64
-    cc::Float64
-    cσ::Float64
-    c1::Float64
-    cμ::Float64
-    dσ::Float64
+    σ::T
+    cc::T
+    cσ::T
+    c1::T
+    cμ::T
+    dσ::T
     # dynamic (internal) strategy parameters and constants
-    x̄::Vector{Float64}
-    pc::Vector{Float64}
-    pσ::Vector{Float64}
-    D::Vector{Float64}
-    B::Matrix{Float64}
-    BD::Matrix{Float64}
-    C::Matrix{Float64}
-    χₙ::Float64
-    arx::Matrix{Float64}
-    ary::Matrix{Float64}
-    arz::Matrix{Float64}
-    arfitness::Vector{Float64}
-    arpenalty::Vector{Float64}
+    x̄::Vector{T}
+    pc::Vector{T}
+    pσ::Vector{T}
+    D::Vector{T}
+    B::Matrix{T}
+    BD::Matrix{T}
+    C::Matrix{T}
+    χₙ::T
+    arx::Matrix{T}
+    ary::Matrix{T}
+    arz::Matrix{T}
+    arfitness::Vector{T}
+    arpenalty::Vector{T}
     arindex::Vector{Int}
     # recordings
-    xmin::Vector{Float64}
-    fmin::Float64
-    fmins::Vector{Float64} # history of best fitness
-    fmeds::Vector{Float64} # history of median fitness
-    feqls::Vector{Float64} # history of equal fitness
+    xmin::Vector{T}
+    fmin::T
+    fmins::Vector{T} # history of best fitness
+    fmeds::Vector{T} # history of median fitness
+    feqls::Vector{T} # history of equal fitness
     # report
-    last_report_time::Float64
+    last_report_time::T
     file::String
     equal_best::Int
 end
@@ -82,14 +82,14 @@ function CMAESOpt(f, g, x0, σ0, lo = -ones(x0), hi = ones(x0);
     arfitness, arpenalty, arindex = zeros(λ), zeros(λ), ones(λ)
     @printf("%i-%i CMA-ES\n", λ, μ)
     # gradient
-    F, G, S = typeof(f), typeof(g), typeof(constraint)
-    return CMAESOpt{F, G, S}(
+    T, F, G, S = eltype(x0), typeof(f), typeof(g), typeof(constraint)
+    return CMAESOpt{T, F, G, S}(
             f, g, N, σ0, lo, hi, constraint,
             λ, μ, w, μeff,
             σ, cc, cσ, c1, cμ, dσ,
             x̄, pc, pσ, D, B, BD, C, χₙ,
             arx, ary, arz, arfitness, arpenalty, arindex, 
-            xmin, fmin, Float64[], Float64[], Float64[],
+            xmin, fmin, [], [], [],
             time(), "CMAES.jld", equal_best)
 end
 
