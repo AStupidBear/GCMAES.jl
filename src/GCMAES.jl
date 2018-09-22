@@ -2,7 +2,7 @@ __precompile__(true)
 
 module GCMAES
 
-using JLD, FileIO
+using BSON
 
 include("util.jl")
 include("constraint.jl")
@@ -90,7 +90,7 @@ function CMAESOpt(f, g, x0, σ0, lo = -ones(x0), hi = ones(x0);
             x̄, pc, pσ, D, B, BD, C, χₙ,
             arx, ary, arz, arfitness, arpenalty, arindex, 
             xmin, fmin, [], [], [],
-            time(), "CMAES.jld", equal_best)
+            time(), "CMAES.bson", equal_best)
 end
 
 function update_candidates!(opt::CMAESOpt)
@@ -242,22 +242,18 @@ end
 
 function load!(opt::CMAESOpt, resume)
     (resume == "false" || !isfile(opt.file)) && return
-    fid = jldopen(opt.file, "r")
-    read(fid, "N") != opt.N && return
-    loadvars = ["σ", "cc", "cσ", "c1", "cμ", "dσ", "x̄", "pc", "pσ", "D", "B", "BD", "C", "χₙ"]
-    resume == "full" && append!(loadvars, ["xmin", "fmin", "fmins", "fmeds", "feqls", "gradopt", "gradopts"])
-    for s in loadvars ∩ names(fid)
-        setfield!(opt, Symbol(s), read(fid, s))
+    data = BSON.load(opt.file)
+    data[:N] != opt.N && return
+    loadvars = [:σ, :cc, :cσ, :c1, :cμ, :dσ, :x̄, :pc, :pσ, :D, :B, :BD, :C, :χₙ]
+    resume == "full" && append!(loadvars, [:xmin, :fmin, :fmins, :fmeds, :feqls, :gradopt, :gradopts])
+    for s in loadvars ∩ keys(data)
+        setfield!(opt, s, data[s])
     end
-    close(fid)
 end
 
 function save(opt::CMAESOpt)
-    fid = JLD.jldopen(opt.file, "w")
-    for s in fieldnames(opt)
-        s != :f && s != :g && write(fid, string(s), getfield(opt, s))            
-    end
-    close(fid)
+    data = Dict(fn => deepcopy(getfield(opt, fn)) for fn in fieldnames(opt)[3:end])
+    BSON.bson(opt.file, data)
 end
 
 function minimize(fg, x0, args...; maxfevals = 0, gcitr = false, 
