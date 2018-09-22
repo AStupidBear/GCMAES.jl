@@ -50,7 +50,7 @@ mutable struct CMAESOpt{T, F, G, S}
     fmeds::Vector{T} # history of median fitness
     feqls::Vector{T} # history of equal fitness
     # report
-    last_report_time::T
+    last_report_time::Float64
     file::String
     equal_best::Int
 end
