@@ -34,7 +34,7 @@ end
 function transform!(c::NormConstraint, x)
     n = norm(x, c.p)
     if n > c.θ
-        scale!(x, c.θ / n)
+        rmul!(x, c.θ / n)
     end
     return x
 end

@@ -9,6 +9,8 @@ using Compat.LinearAlgebra
 using Compat.Dates
 using Compat.Random
 using Compat.Statistics
+using Compat.Statistics: mean, median
+using Compat: rmul!
 
 include("util.jl")
 include("constraint.jl")
@@ -61,8 +63,8 @@ mutable struct CMAESOpt{T, F, G, S}
     equal_best::Int
 end
 
-function CMAESOpt(f, g, x0, σ0, lo = -ones(x0), hi = ones(x0); 
-        λ = 0, equal_best = 10^10, constraint = NoConstraint())
+function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0)); 
+                    λ = 0, equal_best = 10^10, constraint = NoConstraint())
     N, x̄, xmin, fmin, σ = length(x0), x0, x0, f(x0), σ0
     # strategy parameter setting: selection
     λ = λ == 0 ? round(Int, 4 + 3log(N)) : λ
@@ -124,7 +126,7 @@ end
 function linesearch(f, x0, Δ)
     nrm = norm(Δ)
     nrm == 0 && return x0, typemax(eltype(x0))
-    scale!(Δ, 1 / nrm)
+    rmul!(Δ, 1 / nrm)
     αs = [0.0; 2.0.^(2 - nworkers():0)]
     xs = [x0 .+ α .* Δ for α in αs]
     fx, i = findmin(pmap(f, xs))
@@ -150,10 +152,10 @@ function update_parameters!(opt::CMAESOpt, iter)
     # cumulation: update evolution paths
     BLAS.gemv!('N', sqrt(opt.cσ * (2 - opt.cσ) * opt.μeff), opt.B, z̄, 1 - opt.cσ, opt.pσ)  # i.e. pσ = (1 - cσ) * pσ + sqrt(cσ * (2 - cσ) * μeff) * (B * z̄) Eq.(4)
     hsig = norm(opt.pσ) / sqrt(1 - (1 - opt.cσ)^2iter) / opt.χₙ < 1.4 + 2 / (opt.N + 1)
-    BLAS.scale!(opt.pc, 1 - opt.cc)
+    rmul!(opt.pc, 1 - opt.cc)
     BLAS.axpy!(hsig * sqrt(opt.cc * (2 - opt.cc) * opt.μeff) / opt.σ, opt.x̄ - x̄old, opt.pc) # i.e. pc = (1 - cc) * pc + (hsig * sqrt(cc * (2 - cc) * μeff) / σ) * (x̄ - x̄old)
     # adapt covariance matrix C
-    scale!(opt.C, (1 - opt.c1 - opt.cμ + (1 - hsig) * opt.c1 * opt.cc * (2 - opt.cc)))      # discard old C
+    rmul!(opt.C, (1 - opt.c1 - opt.cμ + (1 - hsig) * opt.c1 * opt.cc * (2 - opt.cc)))      # discard old C
     BLAS.syr!('U', opt.c1, opt.pc, opt.C)               # rank 1 update C += c1 * pc * pc'
     artmp = opt.ary[:, indμ]                            # μ difference vectors
     artmp = (artmp .* reshape(opt.w, 1, opt.μ)) * transpose(artmp)
@@ -281,7 +283,7 @@ function minimize(fg, x0, args...; maxfevals = 0, gcitr = false,
         update_candidates!(opt)
         update_parameters!(opt, iter)
         trace_state(opt, iter, fcount)
-        gcitr && @everywhere gc(true)
+        gcitr && @everywhere GC.gc(true)
         cb(opt.xmin) == :stop && break
         terminate(opt) && (status = 1; break)
         # if terminate(opt) opt, iter = restart(opt), 0 end
