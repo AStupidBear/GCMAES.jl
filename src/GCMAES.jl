@@ -254,13 +254,17 @@ function load!(opt::CMAESOpt, resume)
     data[:N] != opt.N && return
     loadvars = [:σ, :cc, :cσ, :c1, :cμ, :dσ, :x̄, :pc, :pσ, :D, :B, :BD, :C, :χₙ]
     resume == "full" && append!(loadvars, [:xmin, :fmin, :fmins, :fmeds, :feqls, :gradopt, :gradopts])
-    for s in loadvars ∩ keys(data)
-        setfield!(opt, s, data[s])
+    for s in loadvars
+        haskey(data, s) && setfield!(opt, s, data[s])
     end
 end
 
 function save(opt::CMAESOpt)
-    data = Dict(fn => deepcopy(getfield(opt, fn)) for fn in fieldnames(opt)[3:end])
+    data = Dict{Symbol, Any}()
+    for fn in fieldnames(CMAESOpt)
+        x = getfield(opt, fn)
+        isbits(eltype(x)) && setindex!(data, x, fn)
+    end
     BSON.bson(opt.file, data)
 end
 
