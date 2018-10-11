@@ -11,6 +11,10 @@ using Compat.Random
 using Compat.Statistics
 using Compat.Statistics: mean, median
 using Compat: rmul!
+if VERSION < v"0.7"
+    mul!(Y, A, B) = A_mul_B!(Y, A, B)
+    eigen(A) = eig(A)
+end
 
 include("util.jl")
 include("constraint.jl")
@@ -59,6 +63,9 @@ mutable struct CMAESOpt{T, F, G, S}
     feqls::Vector{T} # history of equal fitness
     # report
     last_report_time::Float64
+    pmap_time::Float64
+    grad_time::Float64
+    ls_time::Float64
     file::String
     equal_best::Int
 end
@@ -97,8 +104,8 @@ function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0))
             σ, cc, cσ, c1, cμ, dσ,
             x̄, pc, pσ, D, B, BD, C, χₙ,
             arx, ary, arz, arfitness, arpenalty, arindex, 
-            xmin, fmin, [], [], [],
-            time(), "CMAES.bson", equal_best)
+            xmin, fmin, T[], T[], T[],
+            time(), 0, 0, 0, "CMAES.bson", equal_best)
 end
 
 function update_candidates!(opt::CMAESOpt)
@@ -107,7 +114,7 @@ function update_candidates!(opt::CMAESOpt)
     opt.ary = opt.BD * opt.arz
     opt.arx .= opt.x̄ .+ opt.σ .* opt.ary
     arx_cols = [opt.arx[:, k] for k in 1:opt.λ]
-    opt.arfitness .= pmap(opt.f, arx_cols)
+    opt.pmap_time = @elapsed opt.arfitness .= pmap(opt.f, arx_cols)
     opt.arpenalty .=  getpenalty.(Ref(opt.constraint), arx_cols)
     opt.arfitness .+= opt.arpenalty
     # sort by fitness and compute weighted mean into x̄
@@ -134,8 +141,8 @@ function linesearch(f, x0, Δ)
 end
 
 function update_mean!(opt::CMAESOpt)
-    opt.x̄, fx = linesearch(opt.f, opt.x̄, -opt.g(opt.x̄))
-    if fx < opt.fmin copy!(opt.xmin, opt.x̄); opt.fmin = fx end
+    opt.ls_time = @elapsed opt.x̄, fx = linesearch(opt.f, opt.x̄, -opt.g(opt.x̄))
+    if fx < opt.fmin copyto!(opt.xmin, opt.x̄); opt.fmin = fx end
     transform!(opt.constraint, opt.x̄)
 end
 
@@ -143,7 +150,7 @@ function update_parameters!(opt::CMAESOpt, iter)
     indμ = opt.arindex[1:opt.μ]
     # calculate new x̄, this is selection and recombination
     x̄old = copy(opt.x̄)                                # for speed up of Eq. (2) and (3)
-    A_mul_B!(opt.x̄, opt.arx[:, indμ], opt.w)
+    mul!(opt.x̄, opt.arx[:, indμ], opt.w)
     transform!(opt.constraint, opt.x̄)
     # use parallel line search to determin the best α s.t. x += α * Δ achieves minimum
     update_mean!(opt)
@@ -163,10 +170,10 @@ function update_parameters!(opt::CMAESOpt, iter)
     # adapt step size σ
     opt.σ *= exp((norm(opt.pσ) / opt.χₙ - 1) * opt.cσ / opt.dσ)  #Eq. (5)
     # update B and D from C
-    if mod(iter, 1 / (opt.c1 + opt.cμ) / opt.N / 10) < 1 # if counteval - eigeneval > λ / (c1 + cμ) / N / 10  # to achieve O(N^2)
-        (opt.D, opt.B) = eig(Symmetric(opt.C, :U))       # eigen decomposition, B == normalized eigenvectors
-        opt.D .= sqrt.(opt.D)                            # D contains standard deviations now
-        opt.BD .= opt.B .* reshape(opt.D, 1, opt.N)      # O(n^2)
+    if opt.pmap_time > 20 || mod(iter, 1 / (opt.c1 + opt.cμ) / opt.N / 10) < 1 # if counteval - eigeneval > λ / (c1 + cμ) / N / 10  # to achieve O(N^2)
+        (opt.D, opt.B) = eigen(Symmetric(opt.C, :U))    # eigen decomposition, B == normalized eigenvectors
+        opt.D .= sqrt.(opt.D)                           # D contains standard deviations now
+        opt.BD .= opt.B .* reshape(opt.D, 1, opt.N)     # O(n^2)
     end
 end
 
@@ -242,8 +249,12 @@ end
 function trace_state(opt::CMAESOpt, iter, fcount)
     elapsed_time = time() - opt.last_report_time
     # display some information every iteration
-    @printf("time: %s iter: %d  elapsed-time: %.2f fcount: %d  fval: %2.2e  fmin: %2.2e  norm:%2.2e  penalty: %2.2e  axis-ratio: %2.2e free-mem: %.2fGB\n",
-            now(), iter, elapsed_time, fcount, opt.arfitness[1], opt.fmin, norm(opt.arx[:, opt.arindex[1]]), opt.arpenalty[opt.arindex[1]], maximum(opt.D) / minimum(opt.D), Sys.free_memory() / 1024^3)
+    @printf("time:%s  iter:%d  elapsed-time:%.2f  ", now(), iter, elapsed_time)
+    @printf("pmap-time:%.2f  grad-time:%.2f  ls-time:%.2f\n", opt.pmap_time, opt.grad_time, opt.ls_time)
+    @printf("fcount:%d  fval:%2.2e  fmin:%2.2e  ", fcount, opt.arfitness[1], opt.fmin)
+    @printf("norm:%2.2e  penalty:%2.2e  axis-ratio:%2.2e  free-mem:%.2fGB\n",
+            norm(opt.arx[:, opt.arindex[1]]), opt.arpenalty[opt.arindex[1]], 
+            maximum(opt.D) / minimum(opt.D), Sys.free_memory() / 1024^3)
     opt.last_report_time = time()
     return nothing
 end
@@ -253,7 +264,7 @@ function load!(opt::CMAESOpt, resume)
     data = BSON.load(opt.file)
     data[:N] != opt.N && return
     loadvars = [:σ, :cc, :cσ, :c1, :cμ, :dσ, :x̄, :pc, :pσ, :D, :B, :BD, :C, :χₙ]
-    resume == "full" && append!(loadvars, [:xmin, :fmin, :fmins, :fmeds, :feqls, :gradopt, :gradopts])
+    resume == "full" && append!(loadvars, [:xmin, :fmin, :fmins, :fmeds, :feqls])
     for s in loadvars
         haskey(data, s) && setfield!(opt, s, data[s])
     end
@@ -263,14 +274,14 @@ function save(opt::CMAESOpt)
     data = Dict{Symbol, Any}()
     for fn in fieldnames(CMAESOpt)
         x = getfield(opt, fn)
-        isbits(eltype(x)) && setindex!(data, x, fn)
+        isa(x, Union{Number, Array}) && setindex!(data, copy(x), fn)
     end
     BSON.bson(opt.file, data)
 end
 
 function minimize(fg, x0, args...; maxfevals = 0, gcitr = false, 
                   maxiter = 0, resume = "false", cb = [], kwargs...)
-    f, g = fg isa Tuple ? fg : (fg, zeros)
+    f, g = fg isa Tuple ? fg : (fg, zero)
     opt = CMAESOpt(f, g, x0, args...; kwargs...)
     cb = runall([throttle(x -> save(opt), 60); cb])
     maxfevals = (maxfevals == 0) ? 1e3 * length(x0)^2 : maxfevals
@@ -296,7 +307,7 @@ function minimize(fg, x0, args...; maxfevals = 0, gcitr = false,
 end
 
 function maximize(fg, args...; kwargs...)
-    f, g = fg isa Tuple ? fg : (fg, zeros)
+    f, g = fg isa Tuple ? fg : (fg, zero)
     xmin, fmin, status = minimize((x -> -f(x), x -> -g(x)), args...; kwargs...)
     return xmin, -fmin, status
 end
