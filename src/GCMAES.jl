@@ -137,7 +137,8 @@ function linesearch(f, x0, Δ)
 end
 
 function update_mean!(opt::CMAESOpt)
-    opt.ls_time = @elapsed opt.x̄, fx = linesearch(opt.f, opt.x̄, -opt.g(opt.x̄))
+    opt.grad_time = @elapsed Δ = -opt.g(opt.x̄)
+    opt.ls_time = @elapsed opt.x̄, fx = linesearch(opt.f, opt.x̄, Δ)
     if fx < opt.fmin copyto!(opt.xmin, opt.x̄); opt.fmin = fx end
     transform!(opt.constraint, opt.x̄)
 end
