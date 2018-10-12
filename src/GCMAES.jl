@@ -3,12 +3,8 @@ __precompile__(true)
 module GCMAES
 
 using BSON, Compat
-using Compat.Printf
-using Compat.Distributed
-using Compat.LinearAlgebra
-using Compat.Dates
-using Compat.Random
-using Compat.Statistics
+using Compat.Printf, Compat.Distributed, Compat.LinearAlgebra
+using Compat.Dates, Compat.Random, Compat.Statistics
 using Compat.Statistics: mean, median
 using Compat: rmul!
 if VERSION < v"0.7"
