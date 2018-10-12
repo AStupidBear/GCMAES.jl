@@ -62,6 +62,7 @@ mutable struct CMAESOpt{T, F, G, S}
     pmap_time::Float64
     grad_time::Float64
     ls_time::Float64
+    ls_dec::T
     file::String
     equal_best::Int
 end
@@ -101,7 +102,7 @@ function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0))
             x̄, pc, pσ, D, B, BD, C, χₙ,
             arx, ary, arz, arfitness, arpenalty, arindex, 
             xmin, fmin, T[], T[], T[],
-            time(), 0, 0, 0, "CMAES.bson", equal_best)
+            time(), 0, 0, 0, 0, "CMAES.bson", equal_best)
 end
 
 function update_candidates!(opt::CMAESOpt)
@@ -126,19 +127,20 @@ function update_candidates!(opt::CMAESOpt)
     push!(opt.feqls, feql)
 end
 
-function linesearch(f, x0, Δ)
+function linesearch(f, x0::Array{T}, Δ) where T
     nrm = norm(Δ)
-    nrm == 0 && return x0, typemax(eltype(x0))
+    nrm == 0 && return x0, typemax(T), zero(T)
     rmul!(Δ, 1 / nrm)
-    αs = [0.0; 2.0.^(2 - nworkers():0)]
+    αs = T[0.0; 2.0.^(2 - nworkers():0)]
     xs = [x0 .+ α .* Δ for α in αs]
-    fx, i = findmin(pmap(f, xs))
-    return xs[i], fx
+    fs = pmap(f, xs)
+    fx, i = findmin(fs)
+    return xs[i], fx, fs[1] - fx
 end
 
 function update_mean!(opt::CMAESOpt)
     opt.grad_time = @elapsed Δ = -opt.g(opt.x̄)
-    opt.ls_time = @elapsed opt.x̄, fx = linesearch(opt.f, opt.x̄, Δ)
+    opt.ls_time = @elapsed opt.x̄, fx, opt.ls_dec = linesearch(opt.f, opt.x̄, Δ)
     if fx < opt.fmin copyto!(opt.xmin, opt.x̄); opt.fmin = fx end
     transform!(opt.constraint, opt.x̄)
 end
@@ -246,8 +248,9 @@ end
 function trace_state(opt::CMAESOpt, iter, fcount)
     elapsed_time = time() - opt.last_report_time
     # display some information every iteration
-    @printf("time:%s  iter:%d  elapsed-time:%.2f  ", now(), iter, elapsed_time)
-    @printf("pmap-time:%.2f  grad-time:%.2f  ls-time:%.2f\n", opt.pmap_time, opt.grad_time, opt.ls_time)
+    @printf("time:%s  iter:%d  elapsed-time:%.2f  ", Time(now()), iter, elapsed_time)
+    @printf("pmap-time:%.2f  grad-time:%.2f  ls-time:%.2f ls-dec:%2.2e\n", 
+            opt.pmap_time, opt.grad_time, opt.ls_time, opt.ls_dec)
     @printf("fcount:%d  fval:%2.2e  fmin:%2.2e  ", fcount, opt.arfitness[1], opt.fmin)
     @printf("norm:%2.2e  penalty:%2.2e  axis-ratio:%2.2e  free-mem:%.2fGB\n",
             norm(opt.arx[:, opt.arindex[1]]), opt.arpenalty[opt.arindex[1]], 
