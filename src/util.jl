@@ -11,14 +11,14 @@ runall(f) = f
 runall(fs::AbstractVector) = (xs...) -> last([f(xs...) for f in fs])
 
 function throttle(f, timeout; leading = true)
-  lasttime = time()
-  leading && (lasttime -= timeout)
-  function throttled(args...; kwargs...)
-    result = nothing
-    if time() >= lasttime + timeout
-        result = f(args...; kwargs...)
-        lasttime = time()
+    lasttime = time()
+    leading && (lasttime -= timeout)
+    function throttled(args...; kwargs...)
+        result = nothing
+        if time() >= lasttime + timeout
+            result = f(args...; kwargs...)
+            lasttime = time()
+        end
+        return result
     end
-    return result
-  end
 end
