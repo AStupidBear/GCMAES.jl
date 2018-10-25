@@ -46,20 +46,20 @@ end
 
 # MaxNormConstraint
 mutable struct MaxNormConstraint{T1, T2} <: Constraint
-    weight_inds::Vector{T1}
-    norm_constraint::NormConstraint{T2}
+    winds::Vector{T1}
+    nrmconstr::NormConstraint{T2}
     allnorm::Bool # true: use all weight indices for transform
 end
 
-MaxNormConstraint(weight_inds, θ::Real, λ, allnorm) = MaxNormConstraint(weight_inds, NormConstraint(2, θ, λ), allnorm)
+MaxNormConstraint(winds, θ::Real, λ, allnorm) = MaxNormConstraint(winds, NormConstraint(2, θ, λ), allnorm)
 
 function transform!(c::MaxNormConstraint, x)
     if c.allnorm
-        ind = vcat(c.weight_inds...)
-        transform!(c.norm_constraint, view(x, ind))
+        ind = vcat(c.winds...)
+        transform!(c.nrmconstr, view(x, ind))
     else
-        for ind in c.weight_inds
-            transform(c.norm_constraint, view(x, ind))
+        for ind in c.winds
+            transform(c.nrmconstr, view(x, ind))
         end
     end
     return x
@@ -67,9 +67,9 @@ end
 
 function getpenalty(c::MaxNormConstraint, x)
     penalty = zero(eltype(x))
-    inds = c.allnorm ? [vcat(c.weight_inds...)] : c.weight_inds
+    inds = c.allnorm ? [vcat(c.winds...)] : c.winds
     for ind in inds
-        penalty += getpenalty(c.norm_constraint, x[ind])
+        penalty += getpenalty(c.nrmconstr, x[ind])
     end
     return penalty
 end
@@ -83,18 +83,18 @@ end
 getpenalty(c::LpPenalty, x) =  c.λ * max(0, norm(x, c.p) - c.θ)^c.p
 
 mutable struct LpWeightPenalty{T1, T2} <: Constraint
-    weight_inds::Vector{T1}
-    lp_penalty::LpPenalty{T2}
+    winds::Vector{T1}
+    pnlty::LpPenalty{T2}
 end
 
-LpWeightPenalty(weight_inds, p, λ, θ) = LpWeightPenalty(weight_inds, LpPenalty(p, λ, θ))
+LpWeightPenalty(winds, p, λ, θ) = LpWeightPenalty(winds, LpPenalty(p, λ, θ))
 
-getpenalty(c::LpWeightPenalty, x) = getpenalty(c.lp_penalty, x[vcat(c.weight_inds...)])
+getpenalty(c::LpWeightPenalty, x) = getpenalty(c.pnlty, x[vcat(c.winds...)])
 
 mutable struct MultiConstraints <: Constraint
-    constrains::Tuple
+    constrs::Tuple
 end
 
 MultiConstraints(cs::Constraint...) = MultiConstraints(cs)
 
-getpenalty(c::MultiConstraints, x) = sum(c -> getpenalty(c, x), c.constrains)
+getpenalty(c::MultiConstraints, x) = sum(c -> getpenalty(c, x), c.constrs)

@@ -23,7 +23,7 @@ mutable struct CMAESOpt{T, F, G, S}
     σ0::T
     lo::Vector{T}
     hi::Vector{T}
-    constraint::S
+    constr::S
     # strategy parameter setting: selection
     λ::Int
     μ::Int
@@ -68,7 +68,7 @@ mutable struct CMAESOpt{T, F, G, S}
 end
 
 function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0)); 
-                    λ = 0, equal_best = 10^10, constraint = NoConstraint())
+                    λ = 0, equal_best = 10^10, constr = NoConstraint())
     N, x̄, xmin, fmin, σ = length(x0), x0, x0, f(x0), σ0
     # strategy parameter setting: selection
     λ = λ == 0 ? round(Int, 4 + 3log(N)) : λ
@@ -94,9 +94,9 @@ function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0))
     arfitness, arpenalty, arindex = zeros(λ), zeros(λ), ones(λ)
     @printf("%i-%i CMA-ES\n", λ, μ)
     # gradient
-    T, F, G, S = eltype(x0), typeof(f), typeof(g), typeof(constraint)
+    T, F, G, S = eltype(x0), typeof(f), typeof(g), typeof(constr)
     return CMAESOpt{T, F, G, S}(
-            f, g, N, σ0, lo, hi, constraint,
+            f, g, N, σ0, lo, hi, constr,
             λ, μ, w, μeff,
             σ, cc, cσ, c1, cμ, dσ,
             x̄, pc, pσ, D, B, BD, C, χₙ,
@@ -112,7 +112,7 @@ function update_candidates!(opt::CMAESOpt)
     opt.arx .= opt.x̄ .+ opt.σ .* opt.ary
     arx_cols = [opt.arx[:, k] for k in 1:opt.λ]
     opt.pmap_time = @elapsed opt.arfitness .= pmap(opt.f, arx_cols)
-    opt.arpenalty .=  getpenalty.(Ref(opt.constraint), arx_cols)
+    opt.arpenalty .=  getpenalty.(Ref(opt.constr), arx_cols)
     opt.arfitness .+= opt.arpenalty
     # sort by fitness and compute weighted mean into x̄
     sortperm!(opt.arindex, opt.arfitness)
@@ -142,7 +142,7 @@ function update_mean!(opt::CMAESOpt)
     opt.grad_time = @elapsed Δ = -opt.g(opt.x̄)
     opt.ls_time = @elapsed opt.x̄, fx, opt.ls_dec = linesearch(opt.f, opt.x̄, Δ)
     if fx < opt.fmin copyto!(opt.xmin, opt.x̄); opt.fmin = fx end
-    transform!(opt.constraint, opt.x̄)
+    transform!(opt.constr, opt.x̄)
 end
 
 function update_parameters!(opt::CMAESOpt, iter)
@@ -150,7 +150,7 @@ function update_parameters!(opt::CMAESOpt, iter)
     # calculate new x̄, this is selection and recombination
     x̄old = copy(opt.x̄)                                # for speed up of Eq. (2) and (3)
     mul!(opt.x̄, opt.arx[:, indμ], opt.w)
-    transform!(opt.constraint, opt.x̄)
+    transform!(opt.constr, opt.x̄)
     # use parallel line search to determin the best α s.t. x += α * Δ achieves minimum
     update_mean!(opt)
     # calculate new z̄
