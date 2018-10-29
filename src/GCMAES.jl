@@ -139,7 +139,7 @@ function linesearch(f, x0::Array{T}, Δ) where T
 end
 
 function update_mean!(opt::CMAESOpt)
-    ENV["GCMAES"] == "false" && return
+    get(ENV, "GCMAES", "true") == "false" && return
     opt.grad_time = @elapsed Δ = -opt.g(opt.x̄)
     opt.ls_time = @elapsed opt.x̄, fx, opt.ls_dec = linesearch(opt.f, opt.x̄, Δ)
     if fx < opt.fmin copyto!(opt.xmin, opt.x̄); opt.fmin = fx end
