@@ -67,9 +67,10 @@ mutable struct CMAESOpt{T, F, G, S}
     equal_best::Int
 end
 
-function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0)); 
+function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0));
                     λ = 0, equal_best = 10^10, constr = NoConstraint())
     N, x̄, xmin, fmin, σ = length(x0), x0, x0, f(x0), σ0
+    fmin += getpenalty(constr, x0)
     # strategy parameter setting: selection
     λ = λ == 0 ? round(Int, 4 + 3log(N)) : λ
     μ = ceil(Int, λ / 2)                   # number of parents/points for recombination
@@ -100,7 +101,7 @@ function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0))
             λ, μ, w, μeff,
             σ, cc, cσ, c1, cμ, dσ,
             x̄, pc, pσ, D, B, BD, C, χₙ,
-            arx, ary, arz, arfitness, arpenalty, arindex, 
+            arx, ary, arz, arfitness, arpenalty, arindex,
             xmin, fmin, T[], T[], T[],
             time(), 0, 0, 0, 0, "CMAES.bson", equal_best)
 end
@@ -194,39 +195,39 @@ function terminate(opt::CMAESOpt)
     # TolHistFun: the range of the best function values during the last
     #             10 + ⌈30N/λ⌉ iterations is smaller than TolHistFun = 1e-13
     length(hist) > histiter && ptp(hist) < 1e-13 && get!(condition, "TolHistFun", true)
-    # EqualFunVals: in more than 1/3rd of the last D iterations the objective function value of the best and 
-    #               the k-th best solution are identical, that is f(x1:λ) = f(xk:λ), where k = 1 + ⌈0.1 + λ/4⌉ 
+    # EqualFunVals: in more than 1/3rd of the last D iterations the objective function value of the best and
+    #               the k-th best solution are identical, that is f(x1:λ) = f(xk:λ), where k = 1 + ⌈0.1 + λ/4⌉
     length(opt.fmins) > opt.N && mean(opt.feqls[end - opt.N:end]) > 0.33 && get!(condition, "EqualFunVals", true)
     # TolX: all components of pc and all square roots of diagonal components of C,
     #       multiplied by σ/σ0, are smaller than TolX = 1e-12.
     sqrt(maximum(abs, diag(opt.C))) * opt.σ / opt.σ0 < 1e-11 &&
-    maximum(abs, opt.pc) * opt.σ / opt.σ0 < 1e-11 && 
+    maximum(abs, opt.pc) * opt.σ / opt.σ0 < 1e-11 &&
     get!(condition, "TolX", true)
-    # TolUpSigma: σ/σ0 >= maximum(D) * TolUpSigma = 1e20 
+    # TolUpSigma: σ/σ0 >= maximum(D) * TolUpSigma = 1e20
     opt.σ / opt.σ0 > 1e20 * maximum(opt.D) && get!(condition, "TolUpSigma", true)
-    # Stagnation: we track a history of the best and the median fitness in each iteration 
-    #             over the last 20% but at least 120 + 30n/λ and no more than 20000 iterations. 
-    #             We stop, if in both histories the median of the last (most recent) 30% values 
+    # Stagnation: we track a history of the best and the median fitness in each iteration
+    #             over the last 20% but at least 120 + 30n/λ and no more than 20000 iterations.
+    #             We stop, if in both histories the median of the last (most recent) 30% values
     #             is not better than the median of the first 30%
-    length(opt.fmins) > stagiter && 
+    length(opt.fmins) > stagiter &&
     median(opt.fmins[end - 20:end]) >= median(opt.fmins[end - stagiter:end - stagiter + 20]) &&
     median(opt.fmeds[end - 20:end]) >= median(opt.fmeds[end - stagiter:end - stagiter + 20]) &&
     get!(condition, "Stagnation", true)
     # ConditionCov: the condition number of C exceeds 1e14
     maximum(opt.D) > 1e7 * minimum(opt.D) && get!(condition, "ConditionCov", true)
     # TolFun: stop if the range of the best objective function values of the last 10+⌈30n/λ⌉
-    #         generations and all function values of the recent generation is below TolFun = 1e-12. 
+    #         generations and all function values of the recent generation is below TolFun = 1e-12.
     length(hist) > histiter && ptp(vcat(hist, opt.arfitness)) < 1e-11 && get!(condition, "TolFun", true)
     # EqualBest: terminate is the range of the fmins of the last EqualBest iterations is smaller than 1e-12
-    length(opt.fmins) > opt.equal_best && 
-    ptp(accumulate(min, opt.fmins)[end - opt.equal_best:end]) < 1e-12 &&  
+    length(opt.fmins) > opt.equal_best &&
+    ptp(accumulate(min, opt.fmins)[end - opt.equal_best:end]) < 1e-12 &&
     get!(condition, "EqualBest", true)
-    # NoEffectAxis: stop if adding a 0.1-standard deviation vector in any principal axis 
+    # NoEffectAxis: stop if adding a 0.1-standard deviation vector in any principal axis
     #               direction of C does not change m.
-    # NoEffectCoor: stop if adding 0.2-standard deviations in any single coordinate does not 
+    # NoEffectCoor: stop if adding 0.2-standard deviations in any single coordinate does not
     #               change m (i.e. mᵢ equals mᵢ + 0.2σcᵢᵢ, for any i)
-    # TolFacUpX: terminate when step-size increases by TolFacUpx = 1e3 (diverges). That is, 
-    #            the initial step-size was chosen far too small and better solutions were found 
+    # TolFacUpX: terminate when step-size increases by TolFacUpx = 1e3 (diverges). That is,
+    #            the initial step-size was chosen far too small and better solutions were found
     #            far away from the initial solution x0.
     # https://github.com/DEAP/deap/blob/8b8c82186083af4b78bf67d9bb3508cf1489a4be/examples/es/cma_bipop.py
     # http://cma.gforge.inria.fr/cmaes.m
@@ -250,11 +251,11 @@ function trace_state(opt::CMAESOpt, iter, fcount)
     elapsed_time = time() - opt.last_report_time
     # display some information every iteration
     @printf("time:%s  iter:%d  elapsed-time:%.2f  ", Time(now()), iter, elapsed_time)
-    @printf("pmap-time:%.2f  grad-time:%.2f  ls-time:%.2f ls-dec:%2.2e\n", 
+    @printf("pmap-time:%.2f  grad-time:%.2f  ls-time:%.2f ls-dec:%2.2e\n",
             opt.pmap_time, opt.grad_time, opt.ls_time, opt.ls_dec)
     @printf("fcount:%d  fval:%2.2e  fmin:%2.2e  ", fcount, opt.arfitness[1], opt.fmin)
     @printf("norm:%2.2e  penalty:%2.2e  axis-ratio:%2.2e  free-mem:%.2fGB\n",
-            norm(opt.arx[:, opt.arindex[1]]), opt.arpenalty[opt.arindex[1]], 
+            norm(opt.arx[:, opt.arindex[1]]), opt.arpenalty[opt.arindex[1]],
             maximum(opt.D) / minimum(opt.D), Sys.free_memory() / 1024^3)
     opt.last_report_time = time()
     return nothing
@@ -280,7 +281,7 @@ function save(opt::CMAESOpt)
     BSON.bson(opt.file, data)
 end
 
-function minimize(fg, x0, args...; maxfevals = 0, gcitr = false, 
+function minimize(fg, x0, args...; maxfevals = 0, gcitr = false,
                   maxiter = 0, resume = "false", cb = [], kwargs...)
     f, g = fg isa Tuple ? fg : (fg, zero)
     opt = CMAESOpt(f, g, x0, args...; kwargs...)
