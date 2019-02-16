@@ -1,6 +1,4 @@
-using GCMAES, ForwardDiff, Compat
-using Compat.Test
-using Compat.Distributed
+using GCMAES, ForwardDiff, Test, Distributed
 
 @everywhere begin
     rastrigin(x) = 10length(x) + sum(x.^2 .- 10 .* cos.(2π .* x))

@@ -2,15 +2,7 @@ __precompile__(true)
 
 module GCMAES
 
-using BSON, Compat
-using Compat.Printf, Compat.Distributed, Compat.LinearAlgebra
-using Compat.Dates, Compat.Random, Compat.Statistics
-using Compat.Statistics: mean, median
-using Compat: rmul!
-if VERSION < v"0.7"
-    mul!(Y, A, B) = A_mul_B!(Y, A, B)
-    eigen(A) = eig(A)
-end
+using BSON, Printf, Distributed, LinearAlgebra, Dates, Random, Statistics
 
 include("util.jl")
 include("constraint.jl")
