@@ -300,9 +300,10 @@ function minimize(fg, x0, args...; maxfevals = 0, gcitr = false,
     return opt.xmin, opt.fmin, status
 end
 
-function maximize(fg, args...; kwargs...)
+function maximize(fg, args...; kws...)
     f, g = fg isa Tuple ? fg : (fg, zero)
-    xmin, fmin, status = minimize((x -> -f(x), x -> -g(x)), args...; kwargs...)
+    fg′ = (x -> -f(x), x -> -g(x))
+    xmin, fmin, status = minimize(fg′, args...; kws...)
     return xmin, -fmin, status
 end
 
