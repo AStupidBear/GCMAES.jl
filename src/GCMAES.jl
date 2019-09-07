@@ -226,7 +226,7 @@ function terminate(opt::CMAESOpt)
     # Benchmarking a BI-Population CMA-ES on the BBOB-2009 Function Testbed
     termination = false
     for (k, v) in condition
-        v && print_with_color(:red, "Termination Condition Satisfied: ", k, '\n')
+        v && printstyled("Termination Condition Satisfied: ", k, '\n', color = :red)
         termination = termination | v
     end
     return termination
