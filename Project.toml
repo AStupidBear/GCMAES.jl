@@ -19,6 +19,7 @@ ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 [compat]
 BSON = "0.2.4"
 ForwardDiff = "0.10"
+julia = "1"
 
 [targets]
 test = ["Test", "ForwardDiff"]
