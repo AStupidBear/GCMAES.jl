@@ -1,7 +1,7 @@
 name = "GCMAES"
 uuid = "4aa9d100-eb0f-11e8-15f1-25748831eb3b"
 authors = ["Yao Lu <luyaocns@gmail.com>"]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"
@@ -10,16 +10,18 @@ Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
-
-[extras]
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 
 [compat]
 BSON = "0.2.4"
 ForwardDiff = "0.10"
+Requires = "0.5"
 julia = "1"
+
+[extras]
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 test = ["Test", "ForwardDiff"]

@@ -2,10 +2,16 @@ __precompile__(true)
 
 module GCMAES
 
-using BSON, Printf, Distributed, LinearAlgebra, Dates, Random, Statistics
+using Printf, Distributed, LinearAlgebra
+using Dates, Random, Statistics
+using Requires, BSON
 
 include("util.jl")
 include("constraint.jl")
+
+function __init__()
+    @require MPI="da04e1cc-30fd-572f-bb4f-1f8673147195" include("mpi.jl")
+end
 
 mutable struct CMAESOpt{T, F, G, S}
     # fixed hyper-parameters
@@ -85,7 +91,7 @@ function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0))
     # init a few things
     arx, ary, arz = zeros(N, λ), zeros(N, λ), zeros(N, λ)
     arfitness, arpenalty, arindex = zeros(λ), zeros(λ), ones(λ)
-    @printf("%i-%i CMA-ES\n", λ, μ)
+    @master @printf("%i-%i CMA-ES\n", λ, μ)
     # gradient
     T, F, G, S = eltype(x0), typeof(f), typeof(g), typeof(constr)
     return CMAESOpt{T, F, G, S}(
@@ -124,7 +130,7 @@ function linesearch(f, x0::Array{T}, Δ) where T
     nrm = norm(Δ)
     nrm == 0 && return x0, typemax(T), zero(T)
     rmul!(Δ, 1 / nrm)
-    αs = T[0.0; 2.0.^(2 - nworkers():0)]
+    αs = T[0.0; 2.0.^(2 - worldsize():0)]
     xs = [x0 .+ α .* Δ for α in αs]
     fs = pmap(f, xs)
     fx, i = findmin(fs)
@@ -179,7 +185,7 @@ function terminate(opt::CMAESOpt)
     # FlatFitness: warn if 70% candidates' fitnesses are identical
     if opt.arfitness[1] == opt.arfitness[ceil(Int, 0.7opt.λ)]
         opt.σ *= exp(0.2 + opt.cσ / opt.dσ)
-        println("warning: flat fitness, consider reformulating the objective")
+        @master println("warning: flat fitness, consider reformulating the objective")
     end
     # Stop conditions:
     # MaxIter: the maximal number of iterations in each run of CMA-ES
@@ -226,14 +232,14 @@ function terminate(opt::CMAESOpt)
     # Benchmarking a BI-Population CMA-ES on the BBOB-2009 Function Testbed
     termination = false
     for (k, v) in condition
-        v && printstyled("Termination Condition Satisfied: ", k, '\n', color = :red)
+        @master v && printstyled("Termination Condition Satisfied: ", k, '\n', color = :red)
         termination = termination | v
     end
     return termination
 end
 
 function restart(opt::CMAESOpt)
-    @printf("restarting...\n")
+    @master @printf("restarting...\n")
     optnew = CMAESOpt(opt.f, sample(opt.lo, opt.hi), opt.σ0, opt.lo, opt.hi; :λ => 2opt.λ)
     optnew.xmin, optnew.fmin = opt.xmin, opt.fmin
     return optnew
@@ -242,11 +248,11 @@ end
 function trace_state(opt::CMAESOpt, iter, fcount)
     elapsed_time = time() - opt.last_report_time
     # display some information every iteration
-    @printf("time:%s  iter:%d  elapsed-time:%.2f  ", Time(now()), iter, elapsed_time)
-    @printf("pmap-time:%.2f  grad-time:%.2f  ls-time:%.2f ls-dec:%2.2e\n",
+    @master @printf("time:%s  iter:%d  elapsed-time:%.2f  ", Time(now()), iter, elapsed_time)
+    @master @printf("pmap-time:%.2f  grad-time:%.2f  ls-time:%.2f ls-dec:%2.2e\n",
             opt.pmap_time, opt.grad_time, opt.ls_time, opt.ls_dec)
-    @printf("fcount:%d  fval:%2.2e  fmin:%2.2e  ", fcount, opt.arfitness[1], opt.fmin)
-    @printf("norm:%2.2e  penalty:%2.2e  axis-ratio:%2.2e  free-mem:%.2fGB\n",
+    @master @printf("fcount:%d  fval:%2.2e  fmin:%2.2e  ", fcount, opt.arfitness[1], opt.fmin)
+    @master @printf("norm:%2.2e  penalty:%2.2e  axis-ratio:%2.2e  free-mem:%.2fGB\n",
             norm(opt.arx[:, opt.arindex[1]]), opt.arpenalty[opt.arindex[1]],
             maximum(opt.D) / minimum(opt.D), Sys.free_memory() / 1024^3)
     opt.last_report_time = time()
@@ -273,10 +279,11 @@ function save(opt::CMAESOpt)
     BSON.bson(opt.file, data)
 end
 
-function minimize(fg, x0, args...; maxfevals = 0, gcitr = false,
-                  maxiter = 0, resume = "false", cb = [], kwargs...)
+function minimize(fg, x0, a...; maxfevals = 0, gcitr = false, maxiter = 0, 
+                resume = "false", cb = [], seed = 1234, ka...)
+    Random.seed!(seed)
     f, g = fg isa Tuple ? fg : (fg, zero)
-    opt = CMAESOpt(f, g, x0, args...; kwargs...)
+    opt = CMAESOpt(f, g, x0, a...; ka...)
     cb = runall([throttle(x -> save(opt), 60); cb])
     maxfevals = (maxfevals == 0) ? 1e3 * length(x0)^2 : maxfevals
     maxfevals = maxiter != 0 ? maxiter * opt.λ : maxfevals

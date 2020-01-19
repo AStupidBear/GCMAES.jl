@@ -22,3 +22,19 @@ function throttle(f, timeout; leading = true)
         return result
     end
 end
+
+function pmap(f, xs)
+    if @isdefined(MPI) && nworkers() == 1
+        allgather(map(f, part(xs)))
+    else
+        Distributed.pmap(f, xs)
+    end
+end
+
+macro master(ex)
+    :(if !@isdefined(MPI) || myrank() == 0
+        $(esc(ex))
+    end)
+end
+
+worldsize() = @isdefined(MPI) && nworkers() == 1 ? MPI.Comm_size(MPI.COMM_WORLD) : nworkers()
