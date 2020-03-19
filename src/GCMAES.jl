@@ -66,7 +66,9 @@ mutable struct CMAESOpt{T, F, G, S}
 end
 
 function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0));
-                    λ = 0, equal_best = 10^10, constr = NoConstraint())
+                    λ = 0, equal_best = 10^10, constr = false)
+    constr = constr == true ? RangeConstraint(lo, hi) : 
+            constr == false ? NoConstraint() : constr
     N, x̄, xmin, fmin, σ = length(x0), x0, x0, f(x0), σ0
     fmin += getpenalty(constr, x0)
     # strategy parameter setting: selection
@@ -109,7 +111,7 @@ function update_candidates!(opt::CMAESOpt)
     randn!(opt.arz) # resample
     opt.ary = opt.BD * opt.arz
     opt.arx .= opt.x̄ .+ opt.σ .* opt.ary
-    arx_cols = [opt.arx[:, k] for k in 1:opt.λ]
+    arx_cols = [transform!(opt.constr, opt.arx[:, k]) for k in 1:opt.λ]
     opt.pmap_time = @elapsed opt.arfitness .= pmap(opt.f, arx_cols)
     opt.arpenalty .=  getpenalty.(Ref(opt.constr), arx_cols)
     opt.arfitness .+= opt.arpenalty

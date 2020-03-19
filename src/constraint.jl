@@ -17,7 +17,9 @@ mutable struct RangeConstraint{T} <: Constraint
     λ::T # penalty scaling factor
 end
 
-transform!(c::RangeConstraint, x) = clamp!(x, c.lo, c.hi)
+RangeConstraint(lo, hi) = RangeConstraint(lo, hi, zero(eltype(lo)))
+
+transform!(c::RangeConstraint, x) = map!(clamp, x, x, c.lo, c.hi)
 
 function getpenalty(c::RangeConstraint, x)
     xt = transform(c, x)
