@@ -282,9 +282,9 @@ function save(opt::CMAESOpt)
 end
 
 function minimize(fg, x0, a...; maxfevals = 0, gcitr = false, maxiter = 0, 
-                resume = "false", cb = [], seed = 1234, ka...)
+                resume = "false", cb = [], seed = 1234, autodiff = false, ka...)
     Random.seed!(seed)
-    f, g = fg isa Tuple ? fg : (fg, zero)
+    f, g = fg isa Tuple ? fg : autodiff ? (fg, fg') : (fg, zero)
     opt = CMAESOpt(f, g, x0, a...; ka...)
     cb = runall([throttle(x -> save(opt), 60); cb])
     maxfevals = (maxfevals == 0) ? 1e3 * length(x0)^2 : maxfevals
