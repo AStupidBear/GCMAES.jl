@@ -11,6 +11,7 @@ include("constraint.jl")
 
 function __init__()
     @require MPI="da04e1cc-30fd-572f-bb4f-1f8673147195" include("mpi.jl")
+    @require Elemental="902c3f28-d1ec-5e7e-8399-a24c3845ee38" include("elemental.jl")
 end
 
 mutable struct CMAESOpt{T, F, G, S}
@@ -172,7 +173,7 @@ function update_parameters!(opt::CMAESOpt, iter)
     opt.σ *= exp((norm(opt.pσ) / opt.χₙ - 1) * opt.cσ / opt.dσ)  #Eq. (5)
     # update B and D from C
     if opt.pmap_time > 20 || mod(iter, 1 / (opt.c1 + opt.cμ) / opt.N / 10) < 1 # if counteval - eigeneval > λ / (c1 + cμ) / N / 10  # to achieve O(N^2)
-        (opt.D, opt.B) = eigen(Symmetric(opt.C, :U))    # eigen decomposition, B == normalized eigenvectors
+        (opt.D, opt.B) = deigen(opt.C)                  # eigen decomposition, B == normalized eigenvectors
         opt.D .= sqrt.(opt.D)                           # D contains standard deviations now
         opt.BD .= opt.B .* reshape(opt.D, 1, opt.N)     # O(n^2)
     end

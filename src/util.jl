@@ -38,3 +38,5 @@ macro master(ex)
 end
 
 worldsize() = @isdefined(MPI) && nworkers() == 1 ? MPI.Comm_size(MPI.COMM_WORLD) : nworkers()
+
+deigen(x) = eigen(Symmetric(x, :U))

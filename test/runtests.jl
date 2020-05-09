@@ -1,12 +1,9 @@
 using GCMAES
-using ForwardDiff
+using Zygote
 using Distributed
 using Test
 
-@everywhere begin
-    rastrigin(x) = 10length(x) + sum(x.^2 .- 10 .* cos.(2π .* x))
-    ∇rastrigin(x) =  ForwardDiff.gradient(rastrigin, x)
-end
+@everywhere rastrigin(x) = 10length(x) + sum(x.^2 .- 10 .* cos.(2π .* x))
 
 D = 2000
 x0 = fill(0.3, D)
@@ -16,6 +13,6 @@ hi = fill(5.12, D)
 
 GCMAES.minimize(rastrigin, x0, σ0, lo, hi, maxiter = 200)
 
-GCMAES.minimize((rastrigin, ∇rastrigin), x0, σ0, lo, hi, maxiter = 200)
+GCMAES.minimize(rastrigin, x0, σ0, lo, hi, maxiter = 200, autodiff = true)
 
 rm("CMAES.bson", force = true)
