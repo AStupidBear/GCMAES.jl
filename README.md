@@ -7,6 +7,13 @@ using Pkg
 pkg"add GCMAES"
 ```
 
+## Features
+
+- use low level BLAS operations to ensure performance
+- use `Elemental` to do distributed eigendecomposition, which is crutial for high dimensional (>10000) problem
+- compatible with `julia`'s native parallelism
+- compatible with `MPI.jl`, therefore suitable to be run on clusters without good TCP connections
+
 ## Usage
 
 ```julia
@@ -35,4 +42,23 @@ using ForwardDiff
 GCMAES.minimize((rastrigin, ∇rastrigin), x0, σ0, lo, hi, maxiter = 200)
 ```
 
+You can also enable `autodiff` and then `GCMAES` will internally use `Zygote` to do the gradient calculation
+
+```julia
+using Zygote
+GCMAES.minimize((rastrigin, ∇rastrigin), x0, σ0, lo, hi, maxiter = 200, autodiff = true)
+```
+
 A checkpoint file named `CMAES.bson` will be created in the current working directory during optimization, which will be loaded back to initilize `CMAESOpt` if dimensions are equal.
+
+## Parallel Usage
+
+Just simply add `@mpirun` before `GCMAES.minimize`
+
+```
+# ....
+@mpirun GCMAES.minimize(...)
+# ....
+```
+
+Then you can use `mpirun -n N julia ...` or `julia -p N ...` to start your job.

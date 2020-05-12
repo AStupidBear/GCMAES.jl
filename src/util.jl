@@ -80,6 +80,7 @@ macro mpirun(ex)
         MPI.Barrier(MPI.COMM_WORLD)
         $(esc(ex))
         MPI.Barrier(MPI.COMM_WORLD)
+        atexit(MPI.Finalize)
     end
 end
 
