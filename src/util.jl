@@ -1,3 +1,5 @@
+export @mpirun
+
 minibatch(x, b) = [x[i:min(end, i + b - 1)] for i in 1:b:max(1, length(x) - b + 1)]
 
 sample(lo, hi) = lo .+ rand(size(lo)) .* (hi .- lo)
@@ -38,5 +40,47 @@ macro master(ex)
 end
 
 worldsize() = @isdefined(MPI) && nworkers() == 1 ? MPI.Comm_size(MPI.COMM_WORLD) : nworkers()
+
+function processname(pid)
+    @static if Sys.iswindows()
+        split(read(`wmic process where processid=$pid get executablepath`, String))[end]
+    else
+        strip(read(`ps -p $pid -o comm=`, String))
+    end
+end
+
+function pstree(pid = getpid())
+    pids = Int[]
+    while !isnothing(pid)
+        push!(pids, pid)
+        pid = getppid(pid)
+    end
+    pop!(pids)
+    return pids
+end
+
+function inmpi()
+    try
+        @static if Sys.iswindows()
+            occursin("mpi", join(processname.(pstree())))
+        else
+            ps = read(`pstree -s $(getpid())`, String)
+            occursin("mpi", ps) || occursin("slurm", ps)
+        end
+    catch
+        false
+    end
+end
+
+macro mpirun(ex)
+    !inmpi() && return esc(ex)
+    quote
+        @eval using MPI
+        !MPI.Initialized() && MPI.Init()
+        MPI.Barrier(MPI.COMM_WORLD)
+        $(esc(ex))
+        MPI.Barrier(MPI.COMM_WORLD)
+    end
+end
 
 deigen(x) = eigen(Symmetric(x, :U))
