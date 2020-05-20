@@ -87,3 +87,5 @@ end
 deigen(x) = eigen(Symmetric(x, :U))
 
 myrank() = myid() - 1
+
+bcast(x) = x

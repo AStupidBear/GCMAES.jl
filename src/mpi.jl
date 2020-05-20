@@ -26,3 +26,5 @@ function allgather(x, dim = 1)
 end
 
 myrank() = MPI.Initialized() ? MPI.Comm_rank(MPI.COMM_WORLD) : 0
+
+bcast(x, root = 0) = MPI.bcast(x, root, MPI.COMM_WORLD)
