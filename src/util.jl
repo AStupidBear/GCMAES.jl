@@ -84,10 +84,4 @@ macro mpirun(ex)
     end
 end
 
-macro master(ex)
-    quote
-        myrank() == 0 && $(esc(ex))
-    end
-end
-
 deigen(x) = eigen(Symmetric(x, :U))
