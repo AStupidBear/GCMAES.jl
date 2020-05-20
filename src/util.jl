@@ -1,4 +1,4 @@
-export @mpirun
+export @mpirun, @master
 
 minibatch(x, b) = [x[i:min(end, i + b - 1)] for i in 1:b:max(1, length(x) - b + 1)]
 
@@ -81,6 +81,12 @@ macro mpirun(ex)
         $(esc(ex))
         MPI.Barrier(MPI.COMM_WORLD)
         atexit(MPI.Finalize)
+    end
+end
+
+macro master(ex)
+    quote
+        myrank() == 0 && $(esc(ex))
     end
 end
 
