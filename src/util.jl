@@ -86,4 +86,4 @@ end
 
 deigen(x) = eigen(Symmetric(x, :U))
 
-myrank() = myid()
+myrank() = myid() - 1
