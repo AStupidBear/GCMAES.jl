@@ -34,7 +34,7 @@ function pmap(f, xs)
 end
 
 macro master(ex)
-    :(if !@isdefined(MPI) || myrank() == 0
+    :(if myrank() == 0
         $(esc(ex))
     end)
 end
