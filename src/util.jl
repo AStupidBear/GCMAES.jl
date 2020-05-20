@@ -85,3 +85,5 @@ macro mpirun(ex)
 end
 
 deigen(x) = eigen(Symmetric(x, :U))
+
+myrank() = myid()
