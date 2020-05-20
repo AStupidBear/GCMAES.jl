@@ -55,7 +55,7 @@ A checkpoint file named `CMAES.bson` will be created in the current working dire
 
 Just simply add `@mpirun` before `GCMAES.minimize`
 
-```
+```julia
 # ....
 @mpirun GCMAES.minimize(...)
 # ....
