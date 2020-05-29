@@ -2,9 +2,9 @@ export BoxLinQuadTransform
 
 abstract type Transform end
 
-transform(trans::Transform, x) = x
+transform(t::Transform, x) = x
 
-inverse(trans::Transform, x) = x
+inverse(t::Transform, x) = x
 
 struct NoTransform <: Transform
 end
@@ -14,16 +14,18 @@ struct BoxLinQuadTransform{T}
     ub::Vector{T}
     al::Vector{T}
     au::Vector{T}
+    scaling::Bool
 end
 
-function BoxLinQuadTransform(lb, ub)
+function BoxLinQuadTransform(lb, ub; scaling = false)
     al = @. min((ub - lb) / 2, (1 + abs(lb)) / 20)
     au = @. min((ub - lb) / 2, (1 + abs(ub)) / 20)
-    BoxLinQuadTransform(lb, ub, al, au)
+    BoxLinQuadTransform(lb, ub, al, au, scaling)
 end
 
-function transform(trans::BoxLinQuadTransform, x)
-    map(x, trans.lb, trans.ub, trans.al, trans.au) do y, lb, ub, al, au
+function transform(tr::BoxLinQuadTransform, x)
+    map(tr.scaling ? tr.lb .+ (tr.ub .- tr.lb) .* x : x,
+        tr.lb, tr.ub, tr.al, tr.au) do y, lb, ub, al, au
         yl = lb - 2 * al - (ub - lb) / 2
         yu = ub + 2 * au + (ub - lb) / 2
         z, r = y, 2 * (ub - lb + al + au)
@@ -37,11 +39,12 @@ function transform(trans::BoxLinQuadTransform, x)
     end
 end
 
-function inverse(trans::BoxLinQuadTransform, x)
-    map(x, trans.lb, trans.ub, trans.al, trans.au) do y, lb, ub, al, au
+function inverse(tr::BoxLinQuadTransform, x)
+    y = map(x, tr.lb, tr.ub, tr.al, tr.au) do y, lb, ub, al, au
         z, y = y, clamp(y, lb, ub)
         y = ifelse(y < lb + al, (lb - al) + 2 * sqrt(al * (y - lb)),
             ifelse(y > ub - au, (ub + au) - 2 * sqrt(au * (ub - y)), y))
         oftype(z, y)
     end
+    tr.scaling ? (y .- tr.lb) ./ (tr.ub .- tr.lb) : y
 end
