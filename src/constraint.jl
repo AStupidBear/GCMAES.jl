@@ -1,102 +1,53 @@
+export BoxConstraint, NormConstraint
+
 abstract type Constraint end
 
-transform!(c::Constraint, x) = x
+repair!(c::Constraint, x) = x
 
-transform(c::Constraint, x) = transform!(c, copy(x))
+repair(c::Constraint, x) = repair!(c, copy(x))
 
-getpenalty(c::Constraint, x) = zero(eltype(x))
+getfitness(f, c::Constraint, x) = f(x)
 
 # NoConstraint
 mutable struct NoConstraint <: Constraint
 end
 
-# RangeConstraint lo <= x <= hi
-mutable struct RangeConstraint{T} <: Constraint
-    lo::Vector{T}
-    hi::Vector{T}
-    λ::T # penalty scaling factor
+# BoxConstraint lo <= x <= hi
+mutable struct BoxConstraint{T} <: Constraint
+    lo::Vector{T} # lower bound
+    hi::Vector{T} # upper bound
+    α::T          # penalty scaling factor
+    BoxConstraint(lo, hi, α = one(eltype(lo))) = new{eltype(lo)}(lo, hi, α)
 end
 
-RangeConstraint(lo, hi) = RangeConstraint(lo, hi, zero(eltype(lo)))
+BoxConstraint(lo, hi) = BoxConstraint(lo, hi, one(eltype(lo)))
 
-transform!(c::RangeConstraint, x) = map!(clamp, x, x, c.lo, c.hi)
+repair!(c::BoxConstraint, x) = map!(clamp, x, x, c.lo, c.hi)
 
-function getpenalty(c::RangeConstraint, x)
-    xt = transform(c, x)
-    penalty = c.λ * maximum(abs.(x .- xt))
+function getfitness(f, c::BoxConstraint, x)
+    x_repair = repair(c, x)
+    violation = norm(x .- x_repair)
+    f(x_repair) + c.α * violation
 end
 
 # NormConstraint norm(x, p) <= θ
 mutable struct NormConstraint{T} <: Constraint
-    p::Int # p-norm
-    θ::T # max norm
-    λ::T # penalty scaling factor
+    θ::T        # max norm
+    p::Int      # p-norm
+    α::T        # penalty scaling factor
+    NormConstraint(θ, p = 2, α = one(θ)) = new{typeof(θ)}(θ, p, α)
 end
 
-function transform!(c::NormConstraint, x)
-    n = norm(x, c.p)
-    if n > c.θ
-        rmul!(x, c.θ / n)
+function repair!(c::NormConstraint, x)
+    nrm = norm(x, c.p)
+    if nrm > c.θ
+        rmul!(x, c.θ / nrm)
     end
     return x
 end
 
-function getpenalty(c::NormConstraint, x)
-    xt = transform(c, x)
-    penalty = c.λ * norm(x .- xt, c.p)
+function getfitness(f, c::NormConstraint, x)
+    x_repair = repair(c, x)
+    violation = norm(x .- x_repair, c.p)
+    f(x_repair) + c.α * violation
 end
-
-# MaxNormConstraint
-mutable struct MaxNormConstraint{T1, T2} <: Constraint
-    winds::Vector{T1}
-    nrmconstr::NormConstraint{T2}
-    allnorm::Bool # true: use all weight indices for transform
-end
-
-MaxNormConstraint(winds, θ::Real, λ, allnorm) = MaxNormConstraint(winds, NormConstraint(2, θ, λ), allnorm)
-
-function transform!(c::MaxNormConstraint, x)
-    if c.allnorm
-        ind = vcat(c.winds...)
-        transform!(c.nrmconstr, view(x, ind))
-    else
-        for ind in c.winds
-            transform(c.nrmconstr, view(x, ind))
-        end
-    end
-    return x
-end
-
-function getpenalty(c::MaxNormConstraint, x)
-    penalty = zero(eltype(x))
-    inds = c.allnorm ? [vcat(c.winds...)] : c.winds
-    for ind in inds
-        penalty += getpenalty(c.nrmconstr, x[ind])
-    end
-    return penalty
-end
-
-mutable struct LpPenalty{T} <: Constraint
-    p::Int # p-norm
-    λ::T # penalty scaling factor
-    θ::T # penalty margin margin
-end
-
-getpenalty(c::LpPenalty, x) =  c.λ * max(0, norm(x, c.p) - c.θ)^c.p
-
-mutable struct LpWeightPenalty{T1, T2} <: Constraint
-    winds::Vector{T1}
-    pnlty::LpPenalty{T2}
-end
-
-LpWeightPenalty(winds, p, λ, θ) = LpWeightPenalty(winds, LpPenalty(p, λ, θ))
-
-getpenalty(c::LpWeightPenalty, x) = getpenalty(c.pnlty, x[vcat(c.winds...)])
-
-mutable struct MultiConstraints <: Constraint
-    constrs::Tuple
-end
-
-MultiConstraints(cs::Constraint...) = MultiConstraints(cs)
-
-getpenalty(c::MultiConstraints, x) = sum(c -> getpenalty(c, x), c.constrs)

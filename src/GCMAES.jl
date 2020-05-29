@@ -4,7 +4,7 @@ module GCMAES
 
 using Printf, Distributed, LinearAlgebra
 using Dates, Random, Statistics
-using Requires, BSON
+using Requires, BSON, FastClosures
 
 include("util.jl")
 include("constraint.jl")
@@ -14,7 +14,7 @@ function __init__()
     @require Elemental="902c3f28-d1ec-5e7e-8399-a24c3845ee38" include("elemental.jl")
 end
 
-mutable struct CMAESOpt{T, F, G, S}
+mutable struct CMAESOpt{T, F, G}
     # fixed hyper-parameters
     f::F
     g::G
@@ -22,7 +22,6 @@ mutable struct CMAESOpt{T, F, G, S}
     σ0::T
     lo::Vector{T}
     hi::Vector{T}
-    constr::S
     # strategy parameter setting: selection
     λ::Int
     μ::Int
@@ -48,7 +47,6 @@ mutable struct CMAESOpt{T, F, G, S}
     ary::Matrix{T}
     arz::Matrix{T}
     arfitness::Vector{T}
-    arpenalty::Vector{T}
     arindex::Vector{Int}
     # recordings
     xmin::Vector{T}
@@ -67,11 +65,11 @@ mutable struct CMAESOpt{T, F, G, S}
 end
 
 function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0));
-                    λ = 0, equal_best = 10^10, constr = false)
-    constr = constr == true ? RangeConstraint(lo, hi) : 
+                    λ = 0, equal_best = 10^10, constr = false, α = 1)
+    constr = constr == true ? BoxConstraint(lo, hi, α) : 
             constr == false ? NoConstraint() : constr
+    f = @closure z -> getfitness(f, constr, z)
     N, x̄, xmin, fmin, σ = length(x0), x0, x0, f(x0), σ0
-    fmin += getpenalty(constr, x0)
     # strategy parameter setting: selection
     λ = λ == 0 ? round(Int, 4 + 3log(N)) : max(4, λ)
     μ = ceil(Int, λ / 2)                   # number of parents/points for recombination
@@ -87,22 +85,22 @@ function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0))
     # initialize dynamic (internal) strategy parameters and constants
     pc = zeros(N); pσ = zeros(N)            # evolution paths for C and σ
     D = fill(σ, N)                          # diagonal matrix D defines the scaling
-    B = Matrix(I, N, N)                           # B defines the coordinate system
+    B = Matrix(I, N, N)                     # B defines the coordinate system
     BD = B .* reshape(D, 1, N)              # B*D for speed up only
-    C = diagm(0 => D.^2)                        # covariance matrix == BD*(BD)'
+    C = diagm(0 => D.^2)                    # covariance matrix == BD*(BD)'
     χₙ = sqrt(N) * (1 -1 / 4N + 1 / 21N^2)   # expectation of  ||N(0,I)|| == norm(randn(N,1))
     # init a few things
     arx, ary, arz = zeros(N, λ), zeros(N, λ), zeros(N, λ)
-    arfitness, arpenalty, arindex = zeros(λ), zeros(λ), ones(λ)
+    arfitness, arindex = zeros(λ), ones(λ)
     @master @printf("%i-%i CMA-ES\n", λ, μ)
     # gradient
-    T, F, G, S = eltype(x0), typeof(f), typeof(g), typeof(constr)
-    return CMAESOpt{T, F, G, S}(
-            f, g, N, σ0, lo, hi, constr,
+    T, F, G = eltype(x0), typeof(f), typeof(g)
+    return CMAESOpt{T, F, G}(
+            f, g, N, σ0, lo, hi,
             λ, μ, w, μeff,
             σ, cc, cσ, c1, cμ, dσ,
             x̄, pc, pσ, D, B, BD, C, χₙ,
-            arx, ary, arz, arfitness, arpenalty, arindex,
+            arx, ary, arz, arfitness, arindex,
             xmin, fmin, T[], T[], T[],
             time(), 0, 0, 0, 0, "CMAES.bson", equal_best)
 end
@@ -112,10 +110,8 @@ function update_candidates!(opt::CMAESOpt)
     randn!(opt.arz) # resample
     opt.ary = opt.BD * opt.arz
     opt.arx .= opt.x̄ .+ opt.σ .* opt.ary
-    arx_cols = [transform!(opt.constr, opt.arx[:, k]) for k in 1:opt.λ]
+    arx_cols = [opt.arx[:, k] for k in 1:opt.λ]
     opt.pmap_time = @elapsed opt.arfitness .= pmap(opt.f, arx_cols)
-    opt.arpenalty .=  getpenalty.(Ref(opt.constr), arx_cols)
-    opt.arfitness .+= opt.arpenalty
     # sort by fitness and compute weighted mean into x̄
     sortperm!(opt.arindex, opt.arfitness)
     opt.arfitness = opt.arfitness[opt.arindex] # minimization
@@ -145,7 +141,6 @@ function update_mean!(opt::CMAESOpt)
     opt.grad_time = @elapsed Δ = -opt.g(opt.x̄)
     opt.ls_time = @elapsed opt.x̄, fx, opt.ls_dec = linesearch(opt.f, opt.x̄, Δ)
     if fx < opt.fmin copyto!(opt.xmin, opt.x̄); opt.fmin = fx end
-    transform!(opt.constr, opt.x̄)
 end
 
 function update_parameters!(opt::CMAESOpt, iter)
@@ -153,7 +148,6 @@ function update_parameters!(opt::CMAESOpt, iter)
     # calculate new x̄, this is selection and recombination
     x̄old = copy(opt.x̄)                                # for speed up of Eq. (2) and (3)
     mul!(opt.x̄, opt.arx[:, indμ], opt.w)
-    transform!(opt.constr, opt.x̄)
     # use parallel line search to determin the best α s.t. x += α * Δ achieves minimum
     update_mean!(opt)
     # calculate new z̄
@@ -255,19 +249,18 @@ function trace_state(opt::CMAESOpt, iter, fcount)
     @master @printf("pmap-time:%.2f  grad-time:%.2f  ls-time:%.2f ls-dec:%2.2e\n",
             opt.pmap_time, opt.grad_time, opt.ls_time, opt.ls_dec)
     @master @printf("fcount:%d  fval:%2.2e  fmin:%2.2e  ", fcount, opt.arfitness[1], opt.fmin)
-    @master @printf("norm:%2.2e  penalty:%2.2e  axis-ratio:%2.2e  free-mem:%.2fGB\n",
-            norm(opt.arx[:, opt.arindex[1]]), opt.arpenalty[opt.arindex[1]],
-            maximum(opt.D) / minimum(opt.D), Sys.free_memory() / 1024^3)
+    @master @printf("norm:%2.2e  axis-ratio:%2.2e  free-mem:%.2fGB\n",
+            norm(opt.arx[:, opt.arindex[1]]), maximum(opt.D) / minimum(opt.D), Sys.free_memory() / 1024^3)
     opt.last_report_time = time()
     return nothing
 end
 
 function load!(opt::CMAESOpt, resume)
-    (resume == "false" || !isfile(opt.file)) && return
+    (resume == false || !isfile(opt.file)) && return
     data = BSON.load(opt.file)
     data[:N] != opt.N && return
     loadvars = [:σ, :cc, :cσ, :c1, :cμ, :dσ, :x̄, :pc, :pσ, :D, :B, :BD, :C, :χₙ]
-    resume == "full" && append!(loadvars, [:xmin, :fmin, :fmins, :fmeds, :feqls])
+    resume == :full && append!(loadvars, [:xmin, :fmin, :fmins, :fmeds, :feqls])
     for s in loadvars
         haskey(data, s) && setfield!(opt, s, data[s])
     end
@@ -283,7 +276,7 @@ function save(opt::CMAESOpt)
 end
 
 function minimize(fg, x0, a...; maxfevals = 0, gcitr = false, maxiter = 0, 
-                resume = "false", cb = [], seed = 1234, autodiff = false, ka...)
+                resume = false, cb = [], seed = 1234, autodiff = false, ka...)
     Random.seed!(seed)
     f, g = fg isa Tuple ? fg : autodiff ? (fg, fg') : (fg, zero)
     opt = CMAESOpt(f, g, bcast(x0), a...; ka...)
