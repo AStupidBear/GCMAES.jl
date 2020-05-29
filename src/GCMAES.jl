@@ -68,9 +68,7 @@ mutable struct CMAESOpt{T, F, G, CO, TR}
 end
 
 function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0));
-                    λ = 0, equal_best = 10^10, constr = false, α = 1, trans = false)
-    constr = constr == true ? BoxConstraint(lo, hi, α) : 
-            constr == false ? NoConstraint() : constr
+                    λ = 0, equal_best = 10^10, constr = NoConstraint(), trans = false)
     trans = trans == true ? BoxLinQuadTransform(lo, hi) :
             trans == false ? NoTransform() : trans
     x0′ = inverse(trans, x0)
@@ -246,9 +244,10 @@ end
 
 function restart(opt::CMAESOpt)
     @master @printf("restarting...\n")
-    optnew = CMAESOpt(opt.f, sample(opt.lo, opt.hi), opt.σ0, opt.lo, opt.hi; :λ => 2opt.λ)
-    optnew.xmin, optnew.fmin = opt.xmin, opt.fmin
-    return optnew
+    opt′ = CMAESOpt(opt.f, sample(opt.lo, opt.hi), opt.σ0, opt.lo, opt.hi; 
+                    λ = 2opt.λ, constr = opt.constr, trans = opt.constr)
+    opt′.xmin, opt′.fmin = opt.xmin, opt.fmin
+    return opt′
 end
 
 function trace_state(opt::CMAESOpt, iter, fcount)

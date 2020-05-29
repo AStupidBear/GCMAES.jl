@@ -15,7 +15,7 @@ pkg"add GCMAES"
 - compatible with `MPI.jl`, therefore suitable to be run on clusters without good TCP connections
 - handling constraints and transformations
 
-## Usage
+## Basic Usage
 
 ```julia
 using GCMAES
@@ -35,6 +35,10 @@ xmin, fmin, status = GCMAES.minimize(rastrigin, x0, σ0, lo, hi, maxiter = 200)
 
 If the optimization terminate prematurely before `maxiter` is reached, `status` will be `1`, otherwise `0`.
 
+A checkpoint file named `CMAES.bson` will be created in the current working directory during optimization, which will be loaded back to initilize `CMAESOpt` if dimensions are equal.
+
+## Incoporating Gradient
+
 You can speed up the optimization process by providing additional gradient infomation if the loss function is differentialble but noisy. The evolution part can help escaping local minima while the gradient part can speed up convergence in non-noisy regions.
 
 ```julia
@@ -49,8 +53,6 @@ You can also enable `autodiff` and then `GCMAES` will internally use `Zygote` to
 using Zygote
 GCMAES.minimize((rastrigin, ∇rastrigin), x0, σ0, lo, hi, maxiter = 200, autodiff = true)
 ```
-
-A checkpoint file named `CMAES.bson` will be created in the current working directory during optimization, which will be loaded back to initilize `CMAESOpt` if dimensions are equal.
 
 ## Parallel Usage
 
