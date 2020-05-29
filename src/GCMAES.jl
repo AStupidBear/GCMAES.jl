@@ -8,13 +8,14 @@ using Requires, BSON, FastClosures
 
 include("util.jl")
 include("constraint.jl")
+include("transform.jl")
 
 function __init__()
     @require MPI="da04e1cc-30fd-572f-bb4f-1f8673147195" include("mpi.jl")
     @require Elemental="902c3f28-d1ec-5e7e-8399-a24c3845ee38" include("elemental.jl")
 end
 
-mutable struct CMAESOpt{T, F, G}
+mutable struct CMAESOpt{T, F, G, CO, TR}
     # fixed hyper-parameters
     f::F
     g::G
@@ -22,6 +23,8 @@ mutable struct CMAESOpt{T, F, G}
     σ0::T
     lo::Vector{T}
     hi::Vector{T}
+    constr::CO
+    trans::TR
     # strategy parameter setting: selection
     λ::Int
     μ::Int
@@ -65,11 +68,15 @@ mutable struct CMAESOpt{T, F, G}
 end
 
 function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0));
-                    λ = 0, equal_best = 10^10, constr = false, α = 1)
+                    λ = 0, equal_best = 10^10, constr = false, α = 1, trans = false)
     constr = constr == true ? BoxConstraint(lo, hi, α) : 
             constr == false ? NoConstraint() : constr
-    f = @closure z -> getfitness(f, constr, z)
-    N, x̄, xmin, fmin, σ = length(x0), x0, x0, f(x0), σ0
+    trans = trans == true ? BoxLinQuadTransform(lo, hi) :
+            trans == false ? NoTransform() : trans
+    x0′ = inverse(trans, x0)
+    f′ = @closure z -> getfitness(f, constr, transform(trans, z))
+    g′ = @closure z -> g(transform(trans, z))
+    N, x̄, xmin, fmin, σ = length(x0), x0′, x0′, f′(x0′), σ0
     # strategy parameter setting: selection
     λ = λ == 0 ? round(Int, 4 + 3log(N)) : max(4, λ)
     μ = ceil(Int, λ / 2)                   # number of parents/points for recombination
@@ -94,9 +101,11 @@ function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0))
     arfitness, arindex = zeros(λ), ones(λ)
     @master @printf("%i-%i CMA-ES\n", λ, μ)
     # gradient
-    T, F, G = eltype(x0), typeof(f), typeof(g)
-    return CMAESOpt{T, F, G}(
-            f, g, N, σ0, lo, hi,
+    T, F, G = eltype(x̄), typeof(f′), typeof(g′)
+    CO, TR = typeof(constr), typeof(trans)
+    return CMAESOpt{T, F, G, CO, TR}(
+            f′, g′, N, σ0, lo, hi, 
+            constr, trans,
             λ, μ, w, μeff,
             σ, cc, cσ, c1, cμ, dσ,
             x̄, pc, pσ, D, B, BD, C, χₙ,
@@ -300,7 +309,8 @@ function minimize(fg, x0, a...; maxfevals = 0, gcitr = false, maxiter = 0,
         terminate(opt) && (status = 1; break)
         # if terminate(opt) opt, iter = restart(opt), 0 end
     end
-    return opt.xmin, opt.fmin, status
+    xmin = inverse(opt.trans, opt.xmin)
+    return xmin, opt.fmin, status
 end
 
 function maximize(fg, args...; kws...)

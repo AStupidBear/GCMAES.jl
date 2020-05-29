@@ -17,5 +17,7 @@ GCMAES.minimize(rastrigin, x0, σ0, lo, hi, maxiter = 200, constr = true, α = 2
 GCMAES.minimize(rastrigin, x0, σ0, lo, hi, maxiter = 200, constr = true, α = 2)
 GCMAES.minimize(rastrigin, x0, σ0, lo, hi, maxiter = 200, constr = BoxConstraint(lo, hi, 2))
 GCMAES.minimize(rastrigin, x0, σ0, lo, hi, maxiter = 200, constr = NormConstraint(2))
+GCMAES.minimize(rastrigin, x0, σ0, lo, hi, maxiter = 200, trans = true)
+GCMAES.minimize(rastrigin, x0, σ0, lo, hi, maxiter = 200, trans = BoxLinQuadTransform(lo, hi))
 
 rm("CMAES.bson", force = true)

@@ -13,6 +13,7 @@ pkg"add GCMAES"
 - use `Elemental` to do distributed eigendecomposition, which is crutial for high dimensional (>10000) problem
 - compatible with `julia`'s native parallelism
 - compatible with `MPI.jl`, therefore suitable to be run on clusters without good TCP connections
+- handling constraints and transformations
 
 ## Usage
 
