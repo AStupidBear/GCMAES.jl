@@ -3,7 +3,7 @@ __precompile__(true)
 module GCMAES
 
 using Printf, Distributed, LinearAlgebra
-using Dates, Random, Statistics
+using Dates, Random, Statistics, Pkg
 using Requires, BSON, FastClosures
 
 include("util.jl")

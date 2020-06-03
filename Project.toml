@@ -1,7 +1,7 @@
 name = "GCMAES"
 uuid = "4aa9d100-eb0f-11e8-15f1-25748831eb3b"
 authors = ["Yao Lu <luyaocns@gmail.com>"]
-version = "0.1.9"
+version = "0.1.10"
 
 [deps]
 BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"
@@ -9,6 +9,7 @@ Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 FastClosures = "9aa1b823-49e4-5ca5-8b0f-3971ec8bab6a"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Requires = "ae029012-a4dd-5104-9daa-d747884805df"

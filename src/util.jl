@@ -76,11 +76,13 @@ macro mpirun(ex)
     !inmpi() && return esc(ex)
     quote
         @eval using MPI
+        if "Elemental" in keys(Pkg.installed())
+            @eval using Elemental
+        end
         !MPI.Initialized() && MPI.Init()
         MPI.Barrier(MPI.COMM_WORLD)
         $(esc(ex))
         MPI.Barrier(MPI.COMM_WORLD)
-        atexit(MPI.Finalize)
     end
 end
 
