@@ -26,7 +26,7 @@ function throttle(f, timeout; leading = true)
 end
 
 function pmap(f, xs)
-    if @isdefined(MPI) && nworkers() == 1
+    if @isdefined(MPI) && MPI.Initialized()
         allgather(map(f, part(xs)))
     else
         Distributed.pmap(f, xs)
@@ -39,7 +39,7 @@ macro master(ex)
     end)
 end
 
-worldsize() = @isdefined(MPI) && nworkers() == 1 ? MPI.Comm_size(MPI.COMM_WORLD) : nworkers()
+worldsize() = @isdefined(MPI) && MPI.Initialized() ? MPI.Comm_size(MPI.COMM_WORLD) : nworkers()
 
 function processname(pid)
     @static if Sys.iswindows()
