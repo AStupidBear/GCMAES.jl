@@ -276,9 +276,15 @@ end
 
 function save(opt::CMAESOpt)
     data = Dict{Symbol, Any}()
-    for fn in fieldnames(CMAESOpt)
-        x = getfield(opt, fn)
-        isa(x, Union{Number, Array}) && setindex!(data, copy(x), fn)
+    if Base.summarysize(opt) <= 1024^2 * 20
+        for fn in fieldnames(CMAESOpt)
+            x = getfield(opt, fn)
+            isa(x, Union{Number, Array}) && setindex!(data, copy(x), fn)
+        end
+    else
+        data[:xmin] = copy(opt.xmin)
+        data[:x̄] = copy(opt.x̄)
+        data[:N] = opt.N
     end
     BSON.bson(opt.file, data)
 end
