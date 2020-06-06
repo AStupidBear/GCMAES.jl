@@ -150,7 +150,7 @@ function update_mean!(opt::CMAESOpt)
     if fx < opt.fmin copyto!(opt.xmin, opt.x̄); opt.fmin = fx end
 end
 
-function update_parameters!(opt::CMAESOpt, iter)
+function update_parameters!(opt::CMAESOpt, iter, lazydecomp)
     indμ = opt.arindex[1:opt.μ]
     # calculate new x̄, this is selection and recombination
     x̄old = copy(opt.x̄)                                # for speed up of Eq. (2) and (3)
@@ -173,7 +173,7 @@ function update_parameters!(opt::CMAESOpt, iter)
     # adapt step size σ
     opt.σ *= exp((norm(opt.pσ) / opt.χₙ - 1) * opt.cσ / opt.dσ)  #Eq. (5)
     # update B and D from C
-    if opt.pmap_time > 20 || mod(iter, 1 / (opt.c1 + opt.cμ) / opt.N / 10) < 1 # if counteval - eigeneval > λ / (c1 + cμ) / N / 10  # to achieve O(N^2)
+    if !lazydecomp || mod(iter, 1 / (opt.c1 + opt.cμ) / opt.N / 10) < 1 # if counteval - eigeneval > λ / (c1 + cμ) / N / 10  # to achieve O(N^2)
         (opt.D, opt.B) = deigen(opt.C)                  # eigen decomposition, B == normalized eigenvectors
         opt.D .= sqrt.(opt.D)                           # D contains standard deviations now
         opt.BD .= opt.B .* reshape(opt.D, 1, opt.N)     # O(n^2)
@@ -274,9 +274,9 @@ function load!(opt::CMAESOpt, resume)
     end
 end
 
-function save(opt::CMAESOpt)
+function save(opt::CMAESOpt, saveall = false)
     data = Dict{Symbol, Any}()
-    if Base.summarysize(opt) <= 1024^2 * 20
+    if saveall || Base.summarysize(opt) <= 1024^2 * 20
         for fn in fieldnames(CMAESOpt)
             x = getfield(opt, fn)
             isa(x, Union{Number, Array}) && setindex!(data, copy(x), fn)
@@ -290,11 +290,12 @@ function save(opt::CMAESOpt)
 end
 
 function minimize(fg, x0, a...; maxfevals = 0, gcitr = false, maxiter = 0, 
-                resume = false, cb = [], seed = 1234, autodiff = false, ka...)
+                resume = false, cb = [], seed = 1234, autodiff = false, 
+                saveall = false, lazydecomp = false, ka...)
     Random.seed!(seed)
     f, g = fg isa Tuple ? fg : autodiff ? (fg, fg') : (fg, zero)
     opt = CMAESOpt(f, g, bcast(x0), a...; ka...)
-    cb = runall([throttle(x -> save(opt), 60); cb])
+    cb = runall([throttle(x -> save(opt, saveall), 60); cb])
     maxfevals = (maxfevals == 0) ? 1e3 * length(x0)^2 : maxfevals
     maxfevals = maxiter != 0 ? maxiter * opt.λ : maxfevals
     load!(opt, resume)
@@ -307,7 +308,7 @@ function minimize(fg, x0, a...; maxfevals = 0, gcitr = false, maxiter = 0,
             continue
         end
         update_candidates!(opt)
-        update_parameters!(opt, iter)
+        update_parameters!(opt, iter, lazydecomp)
         trace_state(opt, iter, fcount)
         gcitr && @everywhere GC.gc(true)
         cb(opt.xmin) == :stop && break
