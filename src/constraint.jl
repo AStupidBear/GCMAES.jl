@@ -20,8 +20,6 @@ mutable struct BoxConstraint{T} <: Constraint
     BoxConstraint(lo, hi, α = one(eltype(lo))) = new{eltype(lo)}(lo, hi, α)
 end
 
-BoxConstraint(lo, hi) = BoxConstraint(lo, hi, one(eltype(lo)))
-
 repair!(c::BoxConstraint, x) = map!(clamp, x, x, c.lo, c.hi)
 
 function getfitness(f, c::BoxConstraint, x)
