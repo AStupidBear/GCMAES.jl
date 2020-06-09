@@ -90,4 +90,6 @@ deigen(x) = eigen(Symmetric(x, :U))
 
 myrank() = myid() - 1
 
-bcast(x) = x
+bcast(x, root = 0) = x
+
+allequal(x) = length(unique(x)) == 1

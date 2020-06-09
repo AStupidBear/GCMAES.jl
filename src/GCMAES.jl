@@ -31,6 +31,7 @@ mutable struct CMAESOpt{T, F, G, CO, TR}
     μ::Int
     w::Vector{T}
     μeff::T
+    χₙ::T
     # strategy parameter setting: adaptation
     σ::T
     cc::T
@@ -46,7 +47,6 @@ mutable struct CMAESOpt{T, F, G, CO, TR}
     B::Matrix{T}
     BD::Matrix{T}
     C::Matrix{T}
-    χₙ::T
     arx::Matrix{T}
     ary::Matrix{T}
     arz::Matrix{T}
@@ -102,9 +102,11 @@ function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0))
     T, F, G = eltype(x̄), typeof(f′), typeof(g′)
     CO, TR = typeof(constr), typeof(trans)
     return CMAESOpt{T, F, G, CO, TR}(
-            f′, g′, N, σ0, lo, hi, constr, trans, rng,
-            λ, μ, w, μeff, σ, cc, cσ, c1, cμ, dσ,
-            x̄, pc, pσ, D, B, BD, C, χₙ,
+            f′, g′, N, σ0, lo, hi, 
+            constr, trans, rng,
+            λ, μ, w, μeff, χₙ, 
+            σ, cc, cσ, c1, cμ, dσ,
+            x̄, pc, pσ, D, B, BD, C,
             arx, ary, arz, arfitness, arindex,
             xmin, fmin, T[], T[], T[],
             time(), 0, 0, 0, 0, "CMAES.bson")
@@ -266,7 +268,7 @@ function load!(opt::CMAESOpt, resume)
     (resume == false || !isfile(opt.file)) && return
     data = BSON.load(opt.file)
     data[:N] != opt.N && return
-    loadvars = [:σ, :cc, :cσ, :c1, :cμ, :dσ, :x̄, :pc, :pσ, :D, :B, :BD, :C, :χₙ]
+    loadvars = [:σ, :cc, :cσ, :c1, :cμ, :dσ, :x̄, :pc, :pσ, :D, :B, :BD, :C]
     resume == :full && append!(loadvars, [:xmin, :fmin, :fmins, :fmeds, :feqls])
     for s in loadvars
         haskey(data, s) && setfield!(opt, s, data[s])
@@ -274,16 +276,13 @@ function load!(opt::CMAESOpt, resume)
 end
 
 function save(opt::CMAESOpt, saveall = false)
-    data = Dict{Symbol, Any}()
-    if saveall || Base.summarysize(opt) <= 1024^2 * 20
-        for fn in fieldnames(CMAESOpt)
-            x = getfield(opt, fn)
-            isa(x, Union{Number, Array}) && setindex!(data, copy(x), fn)
-        end
-    else
-        data[:xmin] = copy(opt.xmin)
-        data[:x̄] = copy(opt.x̄)
-        data[:N] = opt.N
+    data = Dict{Symbol, Any}(:N => opt.N)
+    savevars = [:σ, :cc, :cσ, :c1, :cμ, :dσ, :x̄, :pc, :pσ, :D, :B, :BD, :C, :xmin, :fmin, :fmins, :fmeds, :feqls]
+    if !saveall && Base.summarysize(opt) >= 1024^2 * 20
+        savevars = setdiff(savevars, [:D, :B, :BD, :C])
+    end
+    for s in savevars
+        data[s] = copy(getfield(opt, s))
     end
     BSON.bson(opt.file, data)
 end
@@ -291,14 +290,16 @@ end
 function minimize(fg, x0, a...; maxfevals = 0, gcitr = false, maxiter = 0, 
                 resume = false, cb = [], seed = nothing, autodiff = false, 
                 saveall = false, lazydecomp = false, equal_best = Inf, ka...)
-    rng = bcast(MersenneTwister(seed), 0)
+    rng = bcast(MersenneTwister(seed))
     f, g = fg isa Tuple ? fg : autodiff ? (fg, fg') : (fg, zero)
     opt = CMAESOpt(f, g, bcast(x0), a...; rng = rng, ka...)
     cb = runall([throttle(x -> save(opt, saveall), 60); cb])
     maxfevals = (maxfevals == 0) ? 1e3 * length(x0)^2 : maxfevals
     maxfevals = maxiter != 0 ? maxiter * opt.λ : maxfevals
     load!(opt, resume)
-    fcount = iter = 0; status = 0
+    iter = length(opt.fmins)
+    fcount = iter * opt.λ
+    status = 0
     while fcount < maxfevals
         iter += 1; fcount += opt.λ
         if opt.λ == 1
