@@ -27,7 +27,7 @@ function copy_local_symm!(x, xd::Elemental.DistMatrix)
     for i in is, j in 1:size(x, 2)
         Elemental.queuePull(xd, i, j)
     end
-    Elemental.processPullQueue(xd, xl)
+    Elemental.processPullQueue(xd, unsafe_wrap(Array, pointer(xl), size(xl)))
     counts = MPI.Allgather(Cint(length(xl)), MPI.COMM_WORLD)
     MPI.Allgatherv!(vec(x), counts, MPI.COMM_WORLD)
     return x
