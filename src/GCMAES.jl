@@ -179,7 +179,7 @@ function update_parameters!(opt::CMAESOpt, iter, lazydecomp)
     end
 end
 
-function terminate(opt::CMAESOpt, equal_best = 2^100)
+function terminate(opt::CMAESOpt, equal_best = Inf)
     histiter = 10 + round(Int, 30opt.N / opt.λ)
     stagiter = round(Int, 0.2 * length(opt.fmins) + 120 + 30opt.N / opt.λ)
     stagiter = min(stagiter, 20000)
@@ -290,7 +290,7 @@ end
 
 function minimize(fg, x0, a...; maxfevals = 0, gcitr = false, maxiter = 0, 
                 resume = false, cb = [], seed = nothing, autodiff = false, 
-                saveall = false, lazydecomp = false, equal_best = 2^100, ka...)
+                saveall = false, lazydecomp = false, equal_best = Inf, ka...)
     rng = bcast(MersenneTwister(seed), 0)
     f, g = fg isa Tuple ? fg : autodiff ? (fg, fg') : (fg, zero)
     opt = CMAESOpt(f, g, bcast(x0), a...; rng = rng, ka...)
