@@ -25,6 +25,7 @@ mutable struct CMAESOpt{T, F, G, CO, TR}
     hi::Vector{T}
     constr::CO
     trans::TR
+    rng::MersenneTwister
     # strategy parameter setting: selection
     λ::Int
     μ::Int
@@ -64,11 +65,10 @@ mutable struct CMAESOpt{T, F, G, CO, TR}
     ls_time::Float64
     ls_dec::T
     file::String
-    equal_best::Int
 end
 
-function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0));
-                    λ = 0, equal_best = 10^10, constr = NoConstraint(), trans = false)
+function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0)); 
+            λ = 0, constr = NoConstraint(), trans = false, rng = MersenneTwister())
     trans = trans == true ? BoxLinQuadTransform(lo, hi) :
             trans == false ? NoTransform() : trans
     x0′ = inverse(trans, x0)
@@ -102,22 +102,21 @@ function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0))
     T, F, G = eltype(x̄), typeof(f′), typeof(g′)
     CO, TR = typeof(constr), typeof(trans)
     return CMAESOpt{T, F, G, CO, TR}(
-            f′, g′, N, σ0, lo, hi, 
-            constr, trans,
-            λ, μ, w, μeff,
-            σ, cc, cσ, c1, cμ, dσ,
+            f′, g′, N, σ0, lo, hi, constr, trans, rng,
+            λ, μ, w, μeff, σ, cc, cσ, c1, cμ, dσ,
             x̄, pc, pσ, D, B, BD, C, χₙ,
             arx, ary, arz, arfitness, arindex,
             xmin, fmin, T[], T[], T[],
-            time(), 0, 0, 0, 0, "CMAES.bson", equal_best)
+            time(), 0, 0, 0, 0, "CMAES.bson")
 end
 
 function update_candidates!(opt::CMAESOpt)
     # generate and evaluate λ offspring
-    randn!(opt.arz) # resample
+    randn!(opt.rng, opt.arz) # resample
     opt.ary = opt.BD * opt.arz
     opt.arx .= opt.x̄ .+ opt.σ .* opt.ary
     arx_cols = [opt.arx[:, k] for k in 1:opt.λ]
+    @assert allequal(sum(opt.arx))
     opt.pmap_time = @elapsed opt.arfitness .= pmap(opt.f, arx_cols)
     # sort by fitness and compute weighted mean into x̄
     sortperm!(opt.arindex, opt.arfitness)
@@ -180,7 +179,7 @@ function update_parameters!(opt::CMAESOpt, iter, lazydecomp)
     end
 end
 
-function terminate(opt::CMAESOpt)
+function terminate(opt::CMAESOpt, equal_best = 2^100)
     histiter = 10 + round(Int, 30opt.N / opt.λ)
     stagiter = round(Int, 0.2 * length(opt.fmins) + 120 + 30opt.N / opt.λ)
     stagiter = min(stagiter, 20000)
@@ -221,8 +220,8 @@ function terminate(opt::CMAESOpt)
     #         generations and all function values of the recent generation is below TolFun = 1e-12.
     length(hist) > histiter && ptp(vcat(hist, opt.arfitness)) < 1e-11 && get!(condition, "TolFun", true)
     # EqualBest: terminate is the range of the fmins of the last EqualBest iterations is smaller than 1e-12
-    length(opt.fmins) > opt.equal_best &&
-    ptp(accumulate(min, opt.fmins)[end - opt.equal_best:end]) < 1e-12 &&
+    length(opt.fmins) > equal_best &&
+    ptp(accumulate(min, opt.fmins)[end - equal_best:end]) < 1e-12 &&
     get!(condition, "EqualBest", true)
     # NoEffectAxis: stop if adding a 0.1-standard deviation vector in any principal axis
     #               direction of C does not change m.
@@ -290,11 +289,11 @@ function save(opt::CMAESOpt, saveall = false)
 end
 
 function minimize(fg, x0, a...; maxfevals = 0, gcitr = false, maxiter = 0, 
-                resume = false, cb = [], seed = 1234, autodiff = false, 
-                saveall = false, lazydecomp = false, ka...)
-    Random.seed!(seed)
+                resume = false, cb = [], seed = nothing, autodiff = false, 
+                saveall = false, lazydecomp = false, equal_best = 2^100, ka...)
+    rng = bcast(MersenneTwister(seed), 0)
     f, g = fg isa Tuple ? fg : autodiff ? (fg, fg') : (fg, zero)
-    opt = CMAESOpt(f, g, bcast(x0), a...; ka...)
+    opt = CMAESOpt(f, g, bcast(x0), a...; rng = rng, ka...)
     cb = runall([throttle(x -> save(opt, saveall), 60); cb])
     maxfevals = (maxfevals == 0) ? 1e3 * length(x0)^2 : maxfevals
     maxfevals = maxiter != 0 ? maxiter * opt.λ : maxfevals
@@ -312,8 +311,8 @@ function minimize(fg, x0, a...; maxfevals = 0, gcitr = false, maxiter = 0,
         trace_state(opt, iter, fcount)
         gcitr && @everywhere GC.gc(true)
         cb(opt.xmin) == :stop && break
-        terminate(opt) && (status = 1; break)
-        # if terminate(opt) opt, iter = restart(opt), 0 end
+        terminate(opt, equal_best) && (status = 1; break)
+        # if terminate(opt, equal_best) opt, iter = restart(opt), 0 end
     end
     xmin = inverse(opt.trans, opt.xmin)
     return xmin, opt.fmin, status
