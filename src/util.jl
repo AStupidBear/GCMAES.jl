@@ -35,7 +35,10 @@ end
 
 macro master(ex)
     :(if myrank() == 0
-        $(esc(ex))
+        res = $(esc(ex))
+        bcast(res, 0)
+    else
+        bcast(nothing, 0)
     end)
 end
 
