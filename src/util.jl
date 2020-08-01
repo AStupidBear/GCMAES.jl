@@ -84,8 +84,9 @@ macro mpirun(ex)
         end
         !MPI.Initialized() && MPI.Init()
         MPI.Barrier(MPI.COMM_WORLD)
-        $(esc(ex))
+        res = $(esc(ex))
         MPI.Barrier(MPI.COMM_WORLD)
+        res
     end
 end
 
