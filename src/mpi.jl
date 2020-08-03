@@ -27,6 +27,6 @@ end
 
 myrank() = MPI.Initialized() ? MPI.Comm_rank(MPI.COMM_WORLD) : 0
 
-bcast(x, root = 0) = MPI.bcast(x, root, MPI.COMM_WORLD)
+bcast(x, root = 0) =  MPI.Initialized() ? MPI.bcast(x, root, MPI.COMM_WORLD) : x
 
 allequal(x) = length(unique(allgather(x))) == 1
