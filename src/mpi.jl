@@ -1,4 +1,4 @@
-function part(x::AbstractArray{T, N}, dim = -2) where {T, N}
+function part(x::AbstractArray{T, N}, dim = -1) where {T, N}
     !MPI.Initialized() && return x
     dim = clamp(dim > 0 ? dim : N + dim + 1, 1, N)
     dsize, rank, wsize = size(x, dim), myrank(), worldsize()
