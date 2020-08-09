@@ -1,4 +1,4 @@
-export @mpirun, @master
+export @mpirun, @master, @barrier
 
 minibatch(x, b) = [x[i:min(end, i + b - 1)] for i in 1:b:max(1, length(x) - b + 1)]
 
@@ -34,12 +34,16 @@ function pmap(f, xs)
 end
 
 macro master(ex)
-    :(if myrank() == 0
-        res = $(esc(ex))
-        bcast(res, 0)
-    else
-        bcast(nothing, 0)
-    end)
+    quote
+        barrier()
+        if myrank() == 0
+            res = $(esc(ex))
+            bcast(res, 0)
+        else
+            bcast(nothing, 0)
+        end
+        barrier()
+    end
 end
 
 worldsize() = @isdefined(MPI) && MPI.Initialized() ? MPI.Comm_size(MPI.COMM_WORLD) : nworkers()
@@ -97,3 +101,7 @@ myrank() = myid() - 1
 bcast(x, root = 0) = x
 
 allequal(x) = length(unique(x)) == 1
+
+barrier() = nothing
+
+macro barrier(ex) :(barrier(); res = $(esc(ex)); barrier(); res) end

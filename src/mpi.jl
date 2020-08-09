@@ -30,3 +30,5 @@ myrank() = MPI.Initialized() ? MPI.Comm_rank(MPI.COMM_WORLD) : 0
 bcast(x, root = 0) =  MPI.Initialized() ? MPI.bcast(x, root, MPI.COMM_WORLD) : x
 
 allequal(x) = length(unique(allgather(x))) == 1
+
+barrier() = MPI.Initialized() ? MPI.Barrier(MPI.COMM_WORLD) : nothing
