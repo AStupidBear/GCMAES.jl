@@ -33,16 +33,18 @@ function pmap(f, xs)
     end
 end
 
+barrier() = nothing
+
+macro barrier(ex) :(barrier(); res = $(esc(ex)); barrier(); res) end
+
 macro master(ex)
     quote
-        barrier()
-        if myrank() == 0
+        @barrier if myrank() == 0
             res = $(esc(ex))
             bcast(res, 0)
         else
             bcast(nothing, 0)
         end
-        barrier()
     end
 end
 
@@ -101,7 +103,3 @@ myrank() = myid() - 1
 bcast(x, root = 0) = x
 
 allequal(x) = length(unique(x)) == 1
-
-barrier() = nothing
-
-macro barrier(ex) :(barrier(); res = $(esc(ex)); barrier(); res) end
