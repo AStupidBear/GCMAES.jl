@@ -2,12 +2,17 @@ function part(x::AbstractArray{T, N}, dim = -1) where {T, N}
     !MPI.Initialized() && return x
     dim = clamp(dim > 0 ? dim : N + dim + 1, 1, N)
     dsize, rank, wsize = size(x, dim), myrank(), worldsize()
-    @assert wsize <= dsize
-    q, r = divrem(dsize, wsize)
-    splits = cumsum([i <= r ? q + 1 : q for i in 1:wsize])
-    pushfirst!(splits, 0)
-    is = (splits[rank + 1] + 1):splits[rank + 2]
-    view(x, ntuple(x -> x == dim ? is : (:), N)...)
+    if dsize >= wsize
+        q, r = divrem(dsize, wsize)
+        splits = cumsum([i <= r ? q + 1 : q for i in 1:wsize])
+        pushfirst!(splits, 0)
+        is = (splits[rank + 1] + 1):splits[rank + 2]
+        view(x, ntuple(x -> x == dim ? is : (:), N)...)
+    else
+        @warn "rank=$rank: dsize=$dsize < wsize=$wsize"
+        is = (rank + 1):min(rank + 1, dsize)
+        view(x, ntuple(x -> x == dim ? is : (:), N)...)
+    end
 end
 
 function allgather(x, dim = 1)
