@@ -56,7 +56,7 @@ function part(x::AbstractArray{T, N}, comm = nothing; dims = -1) where {T, N}
         is = (splits[rank + 1] + 1):splits[rank + 2]
         view(x, ntuple(x -> x == dims ? is : (:), N)...)
     else
-        @warn "rank=$rank: dsize=$dsize < wsize=$wsize"
+        @debug @warn "rank=$rank: dsize=$dsize < wsize=$wsize"
         is = (rank + 1):min(rank + 1, dsize)
         view(x, ntuple(x -> x == dims ? is : (:), N)...)
     end
