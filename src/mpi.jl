@@ -111,13 +111,15 @@ function pmap(f, xs)
         if n >= wsize
             allgather(map(f, part(xs)))
         else
-            bsize = ceil(Int, wsize / n)
-            color = rank ÷ bsize
-            comm′ = MPI.Comm_split(comm, color, rank)
-            setlocalcomm!(comm′)
+            q, r = divrem(wsize, n)
+            splits = cumsum([i <= r ? q + 1 : q for i in 1:n])
+            splits = [0; splits[1:end-1]]
+            color = searchsortedlast(splits, rank) - 1
+            loc_comm = MPI.Comm_split(comm, color, rank)
+            setlocalcomm!(loc_comm)
             ys = allgather(f(xs[color + 1]))
             setlocalcomm!(MPI.COMM_SELF)
-            ys[1:bsize:wsize]
+            ys[splits .+ 1]
         end
     else
         Distributed.pmap(f, xs)
