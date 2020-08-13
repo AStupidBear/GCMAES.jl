@@ -25,31 +25,6 @@ function throttle(f, timeout; leading = true)
     end
 end
 
-function pmap(f, xs)
-    if @isdefined(MPI) && MPI.Initialized()
-        allgather(map(f, part(xs)))
-    else
-        Distributed.pmap(f, xs)
-    end
-end
-
-barrier() = nothing
-
-macro barrier(ex) :(barrier(); res = $(esc(ex)); barrier(); res) end
-
-macro master(ex)
-    quote
-        @barrier if myrank() == 0
-            res = $(esc(ex))
-            bcast(res, 0)
-        else
-            bcast(nothing, 0)
-        end
-    end
-end
-
-worldsize() = @isdefined(MPI) && MPI.Initialized() ? MPI.Comm_size(MPI.COMM_WORLD) : nworkers()
-
 function processname(pid)
     @static if Sys.iswindows()
         split(read(`wmic process where processid=$pid get executablepath`, String))[end]
@@ -81,6 +56,20 @@ function inmpi()
     end
 end
 
+deigen(x) = eigen(Symmetric(x, :U))
+
+worldsize() = nworkers()
+
+myrank() = myid() - 1
+
+bcast(x, root = 0) = x
+
+allequal(x) = length(unique(x)) == 1
+
+barrier() = nothing
+
+macro barrier(ex) :(barrier(); res = $(esc(ex)); barrier(); res) end
+
 macro mpirun(ex)
     !inmpi() && return esc(ex)
     quote
@@ -93,10 +82,13 @@ macro mpirun(ex)
     end
 end
 
-deigen(x) = eigen(Symmetric(x, :U))
-
-myrank() = myid() - 1
-
-bcast(x, root = 0) = x
-
-allequal(x) = length(unique(x)) == 1
+macro master(ex)
+    quote
+        @barrier if myrank() == 0
+            res = $(esc(ex))
+            bcast(res, 0)
+        else
+            bcast(nothing, 0)
+        end
+    end
+end
