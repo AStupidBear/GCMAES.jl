@@ -2,6 +2,8 @@ using GCMAES
 using Zygote
 using Test
 
+try @mpirun using Elemental catch end
+
 rastrigin(x) = 10length(x) + sum(x.^2 .- 10 .* cos.(2π .* x))
 
 D = 5000
