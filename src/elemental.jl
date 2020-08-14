@@ -1,3 +1,5 @@
+using LinearAlgebra
+
 function deigen(x)
     copyto!(x, Symmetric(x, :U))
     xd = Elemental.DistMatrix(eltype(x))
@@ -6,8 +8,9 @@ function deigen(x)
     @debug @assert x ≈ Array(xd)
     w, Z = Elemental.eigHermitian(Elemental.UPPER, xd)
     vals = vec(Array(w))
-    vecs = copy_local_symm!(fill!(similar(x), 0), Z)
-    copyto!(vecs, Symmetric(vecs, :L))
+    vecs = fill!(similar(x), 0)
+    copy_local_symm!(vecs, Z)
+    vecs = permutedims(vecs)
     @debug @assert vecs ≈ Array(Z)
     return vals, vecs
 end
