@@ -25,6 +25,10 @@ function throttle(f, timeout; leading = true)
     end
 end
 
+getppid() = parse(Int, read(`ps -o ppid= -p $(getpid())`, String))
+
+getcpids() = parse.(Int, split(read(`ps -o pid= --ppid $(getpid())`, String), '\n', keepempty = false))
+
 function processname(pid)
     @static if Sys.iswindows()
         split(read(`wmic process where processid=$pid get executablepath`, String))[end]
