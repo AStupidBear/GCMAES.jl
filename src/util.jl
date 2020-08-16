@@ -25,9 +25,31 @@ function throttle(f, timeout; leading = true)
     end
 end
 
-getppid() = parse(Int, read(`ps -o ppid= -p $(getpid())`, String))
+function getppid(pid = getpid())
+    try
+        @static if Sys.iswindows()
+            cmd = `wmic process where processid=$pid get parentprocessid`
+            str = read(pipeline(cmd, stderr = devnull), String)
+            parse(Int, match(r"\d+", str).match)
+        else
+            cmd = `ps -o ppid= -p $pid`
+            str = read(pipeline(cmd, stderr = devnull), String)
+            parse(Int, strip(str))
+        end
+    catch
+        nothing
+    end
+end
 
-getcpids() = parse.(Int, split(read(`ps -o pid= --ppid $(getpid())`, String), '\n', keepempty = false))
+function getcpids(pid = getpid())
+    try
+        cmd = `ps -o pid= --ppid $pid`
+        str = read(pipeline(cmd, stderr = devnull), String)
+        parse.(Int, split(str, '\n', keepempty = false))
+    catch
+        nothing
+    end
+end
 
 function processname(pid)
     @static if Sys.iswindows()
