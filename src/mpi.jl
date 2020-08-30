@@ -115,10 +115,11 @@ function pmap(f, xs)
             splits = cumsum([i <= r ? q + 1 : q for i in 1:n])
             splits = [0; splits[1:end-1]]
             color = searchsortedlast(splits, rank) - 1
-            loc_comm = MPI.Comm_split(comm, color, rank)
-            setlocalcomm!(loc_comm)
+            if localcomm() === MPI.COMM_SELF
+                loc_comm = MPI.Comm_split(comm, color, rank)
+                setlocalcomm!(loc_comm)
+            end
             ys = allgather(f(xs[color + 1]))
-            setlocalcomm!(MPI.COMM_SELF)
             ys[splits .+ 1]
         end
     else
