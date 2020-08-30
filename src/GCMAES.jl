@@ -284,7 +284,7 @@ function save(opt::CMAESOpt, saveall = false)
     for s in savevars
         data[s] = copy(getfield(opt, s))
     end
-    BSON.bson(opt.file, data)
+    @master BSON.bson(opt.file, data)
 end
 
 function minimize(fg, x0, a...; maxfevals = 0, gcitr = false, maxiter = 0, 

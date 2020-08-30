@@ -16,6 +16,7 @@ function throttle(f, timeout; leading = true)
     lasttime = time()
     leading && (lasttime -= timeout)
     function throttled(args...; kwargs...)
+        barrier()
         result = nothing
         if time() >= lasttime + timeout
             result = f(args...; kwargs...)
