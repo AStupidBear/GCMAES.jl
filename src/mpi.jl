@@ -1,5 +1,7 @@
 worldcomm(comm = nothing) = something(comm, MPI.COMM_WORLD)
 
+selfcomm() = MPI.COMM_SELF
+
 worldsize(comm = nothing) = MPI.Initialized() ? MPI.Comm_size(worldcomm(comm)) : nworkers()
 
 myrank(comm = nothing) = MPI.Initialized() ? MPI.Comm_rank(worldcomm(comm)) : myid() - 1
