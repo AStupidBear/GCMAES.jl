@@ -64,7 +64,7 @@ function part(x::AbstractArray{T, N}, comm = nothing; dims = -1) where {T, N}
     end
 end
 
-function allgather(x, comm = nothing; dims = 1)
+function allgather(x::Union{Number, AbstractArray{<:Number}}, comm = nothing; dims = 1)
     if MPI.Initialized()
         x = isa(x, Number) ? [x] : x
         counts = MPI.Allgather(Cint(length(x)), worldcomm(comm))
@@ -73,13 +73,15 @@ function allgather(x, comm = nothing; dims = 1)
         shape = ntuple(i -> i == dims ? (:) : size(x, i), ndims(x))
         xs = [reshape(view(recvbuf, i:j), shape) for (i, j) in ranges]
         @assert sum(length, xs) == sum(counts)
-        return cat(xs..., dims = dims)
+        return dims > 0 ? cat(xs..., dims = dims) : xs
     else
         return x
     end
 end
 
-function gather(x, root, comm = nothing; dims = 1)
+allgather(x, comm = nothing; dims = 1) = cat(MPI.deserialize.(allgather(MPI.serialize(x), comm; dims = 0)), dims = dims)
+
+function gather(x::Union{Number, AbstractArray{<:Number}}, root, comm = nothing; dims = 1)
     if MPI.Initialized()
         x = isa(x, Number) ? [x] : x
         counts = MPI.Allgather(Cint(length(x)), worldcomm(comm))
@@ -97,6 +99,8 @@ function gather(x, root, comm = nothing; dims = 1)
         return x
     end
 end
+
+gather(x, root, comm = nothing; dims = 1) = cat(MPI.deserialize.(gather(MPI.serialize(x), root, comm; dims = 0)), dims = dims)
 
 function localsize()
     host = gethostname()
