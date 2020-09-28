@@ -70,7 +70,7 @@ function allgather(x::Union{Number, AbstractArray{<:Number}}, comm = nothing; di
         counts = MPI.Allgather(Cint(length(x)), worldcomm(comm))
         recvbuf = MPI.Allgatherv(vec(x), counts, worldcomm(comm))
         ranges = zip(cumsum([1; counts[1:end - 1]]), cumsum(counts))
-        shape = ntuple(i -> i == dims ? (:) : size(x, i), ndims(x))
+        shape = ntuple(i -> i == dims || dims < 1 ? (:) : size(x, i), ndims(x))
         xs = [reshape(view(recvbuf, i:j), shape) for (i, j) in ranges]
         @assert sum(length, xs) == sum(counts)
         return dims > 0 ? cat(xs..., dims = dims) : xs
@@ -79,7 +79,7 @@ function allgather(x::Union{Number, AbstractArray{<:Number}}, comm = nothing; di
     end
 end
 
-allgather(x, comm = nothing; dims = 1) = cat(MPI.deserialize.(allgather(MPI.serialize(x), comm; dims = 0)), dims = dims)
+allgather(x, comm = nothing; dims = 1) = cat(MPI.deserialize.(allgather(MPI.serialize(x), comm; dims = 0))..., dims = dims)
 
 function gather(x::Union{Number, AbstractArray{<:Number}}, root, comm = nothing; dims = 1)
     if MPI.Initialized()
@@ -88,10 +88,10 @@ function gather(x::Union{Number, AbstractArray{<:Number}}, root, comm = nothing;
         recvbuf = MPI.Gatherv(vec(x), counts, root, worldcomm(comm))
         if myrank(comm) == root
             ranges = zip(cumsum([1; counts[1:end - 1]]), cumsum(counts))
-            shape = ntuple(i -> i == dims ? (:) : size(x, i), ndims(x))
+            shape = ntuple(i -> i == dims || dims < 1 ? (:) : size(x, i), ndims(x))
             xs = [reshape(view(recvbuf, i:j), shape) for (i, j) in ranges]
             @assert sum(length, xs) == sum(counts)
-            return cat(xs..., dims = dims)
+            return dims > 0 ? cat(xs..., dims = dims) : xs
         else
             return nothing
         end
@@ -100,7 +100,7 @@ function gather(x::Union{Number, AbstractArray{<:Number}}, root, comm = nothing;
     end
 end
 
-gather(x, root, comm = nothing; dims = 1) = cat(MPI.deserialize.(gather(MPI.serialize(x), root, comm; dims = 0)), dims = dims)
+gather(x, root, comm = nothing; dims = 1) = cat(MPI.deserialize.(gather(MPI.serialize(x), root, comm; dims = 0))..., dims = dims)
 
 function localsize()
     host = gethostname()
