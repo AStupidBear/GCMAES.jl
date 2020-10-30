@@ -119,3 +119,28 @@ macro master(ex)
         end
     end
 end
+
+function part(x::AbstractArray{T, N}, rank, wsize, dims) where {T, N}
+    dims = clamp(dims > 0 ? dims : N + dims + 1, 1, N)
+    dsize = size(x, dims)
+    if dsize >= wsize
+        q, r = divrem(dsize, wsize)
+        splits = cumsum([i <= r ? q + 1 : q for i in 1:wsize])
+        pushfirst!(splits, 0)
+        is = (splits[rank + 1] + 1):splits[rank + 2]
+        view(x, ntuple(x -> x == dims ? is : (:), N)...)
+    else
+        @debug @warn "rank=$rank: dsize=$dsize < wsize=$wsize"
+        is = (rank + 1):min(rank + 1, dsize)
+        view(x, ntuple(x -> x == dims ? is : (:), N)...)
+    end
+end
+
+function part(x, comm = nothing; dims = -1)
+    if haskey(ENV, "SLURM_ARRAY_TASK_ID")
+        rank = parse(Int, ENV["SLURM_ARRAY_TASK_ID"])
+        wsize = parse(Int, ENV["SLURM_ARRAY_TASK_COUNT"])
+        x = part(x, rank, wsize, dims)
+    end
+    return x
+end
