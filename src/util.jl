@@ -76,7 +76,7 @@ function inmpi()
             occursin("mpi", join(processname.(pstree())))
         else
             ps = read(`pstree -s $(getpid())`, String)
-            occursin(r"mpi|slurm|srun|salloc", ps)
+            occursin("mpi", ps)
         end
     catch
         false
