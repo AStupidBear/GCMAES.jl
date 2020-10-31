@@ -123,6 +123,7 @@ end
 function part(x::AbstractArray{T, N}, rank, wsize, dims) where {T, N}
     dims = clamp(dims > 0 ? dims : N + dims + 1, 1, N)
     dsize = size(x, dims)
+    wsize = something(wsize, dsize)
     if dsize >= wsize
         q, r = divrem(dsize, wsize)
         splits = cumsum([i <= r ? q + 1 : q for i in 1:wsize])
@@ -136,11 +137,17 @@ function part(x::AbstractArray{T, N}, rank, wsize, dims) where {T, N}
     end
 end
 
-function part(x, comm = nothing; dims = -1)
+function partjob(x, dims = -1)
     if haskey(ENV, "SLURM_ARRAY_TASK_ID")
         rank = parse(Int, ENV["SLURM_ARRAY_TASK_ID"])
         wsize = parse(Int, ENV["SLURM_ARRAY_TASK_COUNT"])
-        x = part(x, rank, wsize, dims)
+        part(x, rank, wsize, dims)
+    elseif haskey(ENV, "PBS_ARRAYID")
+        rank = parse(Int, ENV["PBS_ARRAYID"])
+        part(x, rank, nothing, dims)
+    else
+        return x
     end
-    return x
 end
+
+part(x, comm = nothing; dims = -1) = partjob(x, dims)

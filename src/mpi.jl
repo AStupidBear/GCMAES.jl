@@ -46,11 +46,7 @@ end
 barrier(comm = nothing) = MPI.Initialized() ? MPI.Barrier(worldcomm(comm)) : nothing
 
 function part(x, comm = nothing; dims = -1)
-    if haskey(ENV, "SLURM_ARRAY_TASK_ID")
-        rank = parse(Int, ENV["SLURM_ARRAY_TASK_ID"])
-        wsize = parse(Int, ENV["SLURM_ARRAY_TASK_COUNT"])
-        x = part(x, rank, wsize, dims)
-    end
+    x = partjob(x, dims)
     !MPI.Initialized() && return x
     rank = myrank(comm)
     wsize = worldsize(comm)
