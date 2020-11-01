@@ -153,7 +153,10 @@ part(x, comm = nothing; dims = -1) = x
 
 function limit_julia_procs(n)
     njulia = parse(Int, read(pipeline(`pgrep julia`, `wc -l`), String)) - 1
-    njulia > n ? exit(0) : nothing
+    if njulia > n
+        println("njulia > $n")
+        exit(0)
+    end
 end
 
 function limit_mem_per_cpu(mem)
