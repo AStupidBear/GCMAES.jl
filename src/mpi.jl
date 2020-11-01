@@ -46,7 +46,6 @@ end
 barrier(comm = nothing) = MPI.Initialized() ? MPI.Barrier(worldcomm(comm)) : nothing
 
 function part(x, comm = nothing; dims = -1)
-    x = partjob(x, dims)
     !MPI.Initialized() && return x
     rank = myrank(comm)
     wsize = worldsize(comm)

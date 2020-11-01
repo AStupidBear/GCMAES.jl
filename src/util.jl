@@ -137,7 +137,7 @@ function part(x::AbstractArray{T, N}, rank, wsize, dims) where {T, N}
     end
 end
 
-function partjob(x, dims = -1)
+function partjob(x; dims = -1)
     if haskey(ENV, "SLURM_ARRAY_TASK_ID")
         rank = parse(Int, ENV["SLURM_ARRAY_TASK_ID"])
         wsize = parse(Int, ENV["SLURM_ARRAY_TASK_COUNT"])
@@ -150,4 +150,4 @@ function partjob(x, dims = -1)
     end
 end
 
-part(x, comm = nothing; dims = -1) = partjob(x, dims)
+part(x, comm = nothing; dims = -1) = x
