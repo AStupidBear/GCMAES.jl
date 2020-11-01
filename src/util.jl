@@ -60,24 +60,21 @@ function processname(pid)
     end
 end
 
-function pstree(pid = getpid())
+function pstreeids(pid = getpid())
     pids = Int[]
     while !isnothing(pid)
         push!(pids, pid)
         pid = getppid(pid)
     end
     pop!(pids)
-    return pids
+    return pids[end:-1:1]
 end
+
+pstree(pid = getpid()) = join(processname.(pstreeids(pid)), "--")
 
 function inmpi()
     try
-        @static if Sys.iswindows()
-            occursin("mpi", join(processname.(pstree())))
-        else
-            ps = read(`pstree -s $(getpid())`, String)
-            occursin("mpi", ps)
-        end
+        occursin(r"mpi|orte|hydra", pstree())
     catch
         false
     end
