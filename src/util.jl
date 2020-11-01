@@ -150,3 +150,16 @@ function partjob(x; dims = -1)
 end
 
 part(x, comm = nothing; dims = -1) = x
+
+function limit_julia_procs(n)
+    njulia = parse(Int, read(pipeline(`pgrep julia`, `wc -l`), String)) - 1
+    njulia > n ? exit(0) : nothing
+end
+
+function limit_mem_per_cpu(mem)
+    mem = @eval let MB = 1024^2, M = MB, G = GB = 1024^3
+        $(Meta.parse(mem))
+    end
+    n = floor(Int, Sys.total_memory() / mem)
+    limit_julia_procs(n)
+end
