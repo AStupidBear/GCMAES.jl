@@ -74,6 +74,8 @@ pstree(pid = getpid()) = join(processname.(pstreeids(pid)), "--")
 
 function inmpi()
     try
+        isfile("/usr/bin/yhrun") ?
+        occursin(r"mpi|orte|hydra|slurm|srun|salloc", pstree()) :
         occursin(r"mpi|orte|hydra", pstree())
     catch
         false
