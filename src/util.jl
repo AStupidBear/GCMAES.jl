@@ -154,7 +154,7 @@ part(x, comm = nothing; dims = -1) = x
 function limit_julia_procs(n)
     njulia = parse(Int, read(pipeline(`pgrep julia`, `wc -l`), String)) - 1
     if njulia > n
-        println("njulia > $n")
+        println("njulia > $n, exiting...")
         exit(0)
     end
 end
