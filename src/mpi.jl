@@ -63,7 +63,7 @@ function allgather(x::Union{Number, AbstractArray{<:Number}}, comm = nothing; di
         @assert sum(length, xs) == sum(counts)
         return dims > 0 ? cat(xs..., dims = dims) : xs
     else
-        return x
+        return dims > 0 ? x : [x]
     end
 end
 
@@ -84,11 +84,15 @@ function gather(x::Union{Number, AbstractArray{<:Number}}, root, comm = nothing;
             return nothing
         end
     else
-        return x
+        return dims > 0 ? x : [x]
     end
 end
 
-gather(x, root, comm = nothing; dims = 1) = cat(MPI.deserialize.(gather(MPI.serialize(x), root, comm; dims = 0))..., dims = dims)
+function gather(x, root, comm = nothing; dims = 1)
+    xs = gather(MPI.serialize(x), root, comm; dims = 0)
+    isnothing(x) && return
+    cat(MPI.deserialize.(xs)..., dims = dims)
+end
 
 function localsize()
     host = gethostname()
