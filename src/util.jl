@@ -155,8 +155,9 @@ function limit_julia_procs(n)
     njulia = parse(Int, read(pipeline(`pgrep julia`, `wc -l`), String)) - 1
     if njulia > n
         println("njulia > $n, exiting...")
-        exit(0)
+        return true
     end
+    return false
 end
 
 function limit_mem_per_cpu(mem)
