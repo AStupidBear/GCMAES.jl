@@ -1,4 +1,4 @@
-export @mpirun, @master
+export @mpirun, @master, @mpiman, mpiman_pmap
 
 minibatch(x, b) = [x[i:min(end, i + b - 1)] for i in 1:b:max(1, length(x) - b + 1)]
 

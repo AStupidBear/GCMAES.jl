@@ -125,6 +125,23 @@ function pmap(f, xs)
     end
 end
 
+macro mpiman(ex)
+    quote
+        @eval using MPIClusterManagers
+        man = MPIClusterManagers.start_main_loop(MPI_TRANSPORT_ALL)
+        $(esc(ex))
+        MPIClusterManagers.stop_main_loop(man)
+    end
+end
+
+function mpiman_pmap(a...; ka...)
+    if @isdefined(MPI) && MPI.Initialized() && worldsize() > 1
+        @mpiman Distributed.pmap(a...; ka...)
+    else
+        map(a...; ka...)
+    end
+end
+
 const _localcomm = Ref{MPI.Comm}(MPI.COMM_SELF)
 
 setlocalcomm!(comm) = _localcomm[] = comm
