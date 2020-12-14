@@ -110,10 +110,12 @@ end
 
 macro mpiman(ex)
     !inmpi() && return esc(ex)
+    man = gensym()
     quote
         @eval using MPIClusterManagers
-        MPIClusterManagers.start_main_loop(MPIClusterManagers.MPI_TRANSPORT_ALL)
-        $ex
+        $man = MPIClusterManagers.start_main_loop(MPIClusterManagers.MPI_TRANSPORT_ALL)
+        res = $ex
+        MPIClusterManagers.stop_main_loop($man)
     end |> esc
 end
 
