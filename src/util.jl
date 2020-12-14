@@ -112,11 +112,9 @@ macro mpiman(ex)
     !inmpi() && return esc(ex)
     quote
         @eval using MPIClusterManagers
-        man = MPIClusterManagers.start_main_loop(MPI_TRANSPORT_ALL)
-        res = $(esc(ex))
-        MPIClusterManagers.stop_main_loop(man)
-        res
-    end
+        MPIClusterManagers.start_main_loop(MPIClusterManagers.MPI_TRANSPORT_ALL)
+        $ex
+    end |> esc
 end
 
 macro master(ex)
