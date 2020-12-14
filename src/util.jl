@@ -1,4 +1,4 @@
-export @mpirun, @master, @mpiman, mpiman_pmap
+export @mpirun, @master, @mpiman
 
 minibatch(x, b) = [x[i:min(end, i + b - 1)] for i in 1:b:max(1, length(x) - b + 1)]
 
@@ -104,6 +104,17 @@ macro mpirun(ex)
         MPI.Barrier(MPI.COMM_WORLD)
         res = $(esc(ex))
         MPI.Barrier(MPI.COMM_WORLD)
+        res
+    end
+end
+
+macro mpiman(ex)
+    !inmpi() && return esc(ex)
+    quote
+        @eval using MPIClusterManagers
+        man = MPIClusterManagers.start_main_loop(MPI_TRANSPORT_ALL)
+        res = $(esc(ex))
+        MPIClusterManagers.stop_main_loop(man)
         res
     end
 end
