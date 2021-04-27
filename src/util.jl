@@ -178,3 +178,23 @@ function limit_mem_per_cpu(mem)
     n = floor(Int, Sys.total_memory() / mem)
     limit_julia_procs(n)
 end
+
+function make_virtual_jobarray(n)
+    if !haskey(ENV, "SLURM_ARRAY_TASK_ID")
+        ENV["SLURM_ARRAY_TASK_ID"] = 0
+        ENV["SLURM_ARRAY_TASK_COUNT"] = 1
+    end
+    taskid = parse(Int, ENV["SLURM_ARRAY_TASK_ID"])
+    taskcount = parse(Int, ENV["SLURM_ARRAY_TASK_COUNT"])
+    rank, wsize = myrank(), worldsize()
+    q, r = divrem(wsize, n)
+    splits = cumsum([i <= r ? q + 1 : q for i in 1:n])
+    splits = [0; splits[1:end-1]]
+    color = searchsortedlast(splits, rank) - 1
+    comm = MPI.Comm_split(MPI.COMM_WORLD, color, rank)
+    setglobalcomm!(comm)
+    @show color, taskid, taskcount
+    ENV["SLURM_ARRAY_TASK_ID"] = taskid * n + color
+    ENV["SLURM_ARRAY_TASK_COUNT"] = taskcount * n
+    return nothing
+end
