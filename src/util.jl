@@ -101,9 +101,9 @@ macro mpirun(ex)
     quote
         @eval using MPI
         !MPI.Initialized() && MPI.Init()
-        MPI.Barrier(MPI.COMM_WORLD)
+        MPI.Barrier(worldcomm())
         res = $(esc(ex))
-        MPI.Barrier(MPI.COMM_WORLD)
+        MPI.Barrier(worldcomm())
         res
     end
 end

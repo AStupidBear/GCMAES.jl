@@ -1,4 +1,4 @@
-worldcomm(comm = nothing) = something(comm, MPI.COMM_WORLD)
+worldcomm(comm = nothing) = something(comm, globalcomm())
 
 selfcomm() = MPI.COMM_SELF
 
@@ -36,9 +36,9 @@ function allmin(x, comm = nothing)
     return x
 end
 
-function allmax(x)
+function allmax(x, comm = nothing)
     if MPI.Initialized()
-        x = MPI.Allreduce(x, MPI.MAX, MPI.COMM_WORLD)
+        x = MPI.Allreduce(x, MPI.MAX, worldcomm(comm))
     end
     return x
 end
@@ -126,7 +126,10 @@ function pmap(f, xs)
 end
 
 const _localcomm = Ref{MPI.Comm}(MPI.COMM_SELF)
+const _globalcomm = Ref{MPI.Comm}(MPI.COMM_WORLD)
 
 setlocalcomm!(comm) = _localcomm[] = comm
+setglobalcomm!(comm) = _globalcomm[] = comm
 
 localcomm() = _localcomm[]
+globalcomm() = _globalcomm[]
