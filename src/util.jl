@@ -180,6 +180,7 @@ function limit_mem_per_cpu(mem)
 end
 
 function make_virtual_jobarray(n)
+    !inmpi() && return nothing
     if !haskey(ENV, "SLURM_ARRAY_TASK_ID")
         ENV["SLURM_ARRAY_TASK_ID"] = 0
         ENV["SLURM_ARRAY_TASK_COUNT"] = 1
