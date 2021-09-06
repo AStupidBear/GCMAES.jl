@@ -1,7 +1,6 @@
 # Gradient-based Covariance Matrix Adaptation Evolutionary Strategy for Real Blackbox  Optimization
 
-[![Build Status](https://travis-ci.com/AStupidBear/GCMAES.jl.svg?branch=master)](https://travis-ci.com/AStupidBear/GCMAES.jl)
-[![Build Status](https://ci.appveyor.com/api/projects/status/github/AStupidBear/GCMAES.jl?svg=true)](https://ci.appveyor.com/project/AStupidBear/GCMAES-jl)
+[![Build Status](https://github.com/AStupidBear/GCMAES.jl/workflows/CI/badge.svg)](https://github.com/AStupidBear/GCMAES.jl/actions)
 [![Coverage](https://codecov.io/gh/AStupidBear/GCMAES.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/AStupidBear/GCMAES.jl)
 
 ## Installation
