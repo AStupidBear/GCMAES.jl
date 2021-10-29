@@ -287,7 +287,7 @@ function save(opt::CMAESOpt, saveall = false)
     @master BSON.bson(opt.file, data)
 end
 
-function minimize(fg, x0, a...; maxfevals = 0, gcitr = false, maxiter = 0, 
+function minimize(fg, x0, a...; maxfevals = 0, gcitr = false, maxiter = 0, maxtime::Number=Inf,
                 resume = false, cb = [], seed = nothing, autodiff = false, 
                 saveall = false, lazydecomp = false, equal_best = Inf, ka...)
     rng = bcast(MersenneTwister(seed))
@@ -300,7 +300,9 @@ function minimize(fg, x0, a...; maxfevals = 0, gcitr = false, maxiter = 0,
     iter = length(opt.fmins)
     fcount = iter * opt.λ
     status = 0
-    while fcount < maxfevals
+    t0 = time()
+    t_run = 0.0
+    while (fcount < maxfevals) & (t_run <= maxtime)
         iter += 1; fcount += opt.λ
         if opt.λ == 1
             update_mean!(opt)
@@ -312,6 +314,7 @@ function minimize(fg, x0, a...; maxfevals = 0, gcitr = false, maxiter = 0,
         trace_state(opt, iter, fcount)
         gcitr && @everywhere GC.gc(true)
         cb(opt.xmin) == :stop && break
+        t_run = time() - t0
         terminate(opt, equal_best) && (status = 1; break)
         # if terminate(opt, equal_best) opt, iter = restart(opt), 0 end
     end
