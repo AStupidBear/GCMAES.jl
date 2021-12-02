@@ -193,7 +193,7 @@ function make_virtual_jobarray(n)
     splits = [0; splits[1:end-1]]
     color = searchsortedlast(splits, rank) - 1
     comm = MPI.Comm_split(MPI.COMM_WORLD, color, rank)
-    setglobalcomm!(comm)
+    set_globalcomm!(comm)
     ENV["SLURM_ARRAY_TASK_ID"] = taskid * n + color
     ENV["SLURM_ARRAY_TASK_COUNT"] = taskcount * n
     return nothing
@@ -201,8 +201,8 @@ end
 
 function with_globalcomm(f, comm)
     comm⁻ = globalcomm()
+    set_globalcomm!(comm)
     res = f()
-    res = setglobalcomm!(comm)
-    setglobalcomm!(comm⁻)
+    set_globalcomm!(comm⁻)
     return res
 end

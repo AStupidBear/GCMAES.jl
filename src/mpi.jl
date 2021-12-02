@@ -115,7 +115,7 @@ function pmap(f, xs)
             color = searchsortedlast(splits, rank) - 1
             if localcomm() === MPI.COMM_SELF
                 loc_comm = MPI.Comm_split(comm, color, rank)
-                setlocalcomm!(loc_comm)
+                set_localcomm!(loc_comm)
             end
             ys = allgather(f(xs[color + 1]))
             ys[splits .+ 1]
@@ -128,8 +128,8 @@ end
 const _localcomm = Ref{MPI.Comm}(MPI.COMM_SELF)
 const _globalcomm = Ref{MPI.Comm}(MPI.COMM_WORLD)
 
-setlocalcomm!(comm) = _localcomm[] = comm
-setglobalcomm!(comm) = _globalcomm[] = comm
+set_localcomm!(comm) = _localcomm[] = comm
+set_globalcomm!(comm) = _globalcomm[] = comm
 
 localcomm() = _localcomm[]
 globalcomm() = _globalcomm[]
