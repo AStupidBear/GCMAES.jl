@@ -176,7 +176,7 @@ function update_parameters!(opt::CMAESOpt, iter, lazydecomp)
     # update B and D from C
     if !lazydecomp || mod(iter, 1 / (opt.c1 + opt.cμ) / opt.N / 10) < 1 # if counteval - eigeneval > λ / (c1 + cμ) / N / 10  # to achieve O(N^2)
         (opt.D, opt.B) = deigen(opt.C)                  # eigen decomposition, B == normalized eigenvectors
-        opt.D .= sqrt.(opt.D)                           # D contains standard deviations now
+        opt.D .= sqrt.(max.(opt.D, 0f0))                # D contains standard deviations now
         opt.BD .= opt.B .* reshape(opt.D, 1, opt.N)     # O(n^2)
     end
 end
