@@ -198,3 +198,11 @@ function make_virtual_jobarray(n)
     ENV["SLURM_ARRAY_TASK_COUNT"] = taskcount * n
     return nothing
 end
+
+function with_globalcomm(f, comm)
+    comm⁻ = globalcomm()
+    res = f()
+    res = setglobalcomm!(comm)
+    setglobalcomm!(comm⁻)
+    return res
+end
