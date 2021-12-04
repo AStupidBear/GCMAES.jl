@@ -74,7 +74,7 @@ function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0))
     x0′ = inverse(trans, x0)
     f′ = @closure z -> getfitness(f, constr, transform(trans, z))
     g′ = @closure z -> g(transform(trans, z))
-    N, x̄, xmin, fmin, σ = length(x0), x0′, x0′, f′(x0′), σ0
+    N, x̄, xmin, fmin, σ = length(x0), copy(x0′), copy(x0′), f′(x0′), σ0
     # strategy parameter setting: selection
     λ = λ == 0 ? round(Int, 4 + 3log(N)) : max(4, λ)
     μ = ceil(Int, λ / 2)                   # number of parents/points for recombination
@@ -148,7 +148,10 @@ function update_mean!(opt::CMAESOpt)
     get(ENV, "GCMAES_USE_GRAD", "1") == "0" && return
     opt.grad_time = @elapsed Δ = -opt.g(opt.x̄)
     opt.ls_time = @elapsed opt.x̄, fx, opt.ls_dec = linesearch(opt.f, opt.x̄, Δ)
-    if fx < opt.fmin copyto!(opt.xmin, opt.x̄); opt.fmin = fx end
+    if fx < opt.fmin
+        opt.xmin .= opt.x̄
+        opt.fmin = fx
+    end
 end
 
 function update_parameters!(opt::CMAESOpt, iter, lazydecomp)
