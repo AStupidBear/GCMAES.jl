@@ -67,8 +67,9 @@ mutable struct CMAESOpt{T, F, G, CO, TR}
     file::String
 end
 
-function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0)); 
-            λ = 0, constr = NoConstraint(), trans = false, rng = MersenneTwister())
+function CMAESOpt(f, g, x0, σ0, lo, hi;
+            λ = 0, constr = NoConstraint(), trans = false, 
+            file = "CMAES.bson", rng = MersenneTwister())
     trans = trans == true ? BoxLinQuadTransform(lo, hi) :
             trans == false ? NoTransform() : trans
     x0′ = inverse(trans, x0)
@@ -109,7 +110,7 @@ function CMAESOpt(f, g, x0, σ0, lo = -fill(1, size(x0)), hi = fill(1, size(x0))
             x̄, pc, pσ, D, B, BD, C,
             arx, ary, arz, arfitness, arindex,
             xmin, fmin, T[], T[], T[],
-            time(), 0, 0, 0, 0, "CMAES.bson")
+            time(), 0, 0, 0, 0, file)
 end
 
 function update_candidates!(opt::CMAESOpt)
@@ -279,6 +280,7 @@ function load!(opt::CMAESOpt, resume)
 end
 
 function save(opt::CMAESOpt, saveall = false)
+    isempty(opt.file) && return
     data = Dict{Symbol, Any}(:N => opt.N)
     savevars = [:σ, :cc, :cσ, :c1, :cμ, :dσ, :x̄, :pc, :pσ, :D, :B, :BD, :C, :xmin, :fmin, :fmins, :fmeds, :feqls]
     if !saveall && Base.summarysize(opt) >= 1024^2 * 20
