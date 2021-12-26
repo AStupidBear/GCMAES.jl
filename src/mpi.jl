@@ -103,12 +103,13 @@ function localsize()
 end
 
 function pmap(f, xs)
+    isempty(xs) && return map(f, xs)
     if @isdefined(MPI) && MPI.Initialized()
         comm, n = worldcomm(), length(xs)
         wsize, rank = worldsize(), myrank()
         if n >= wsize
             allgather(map(f, part(xs)))
-        else
+        elseif n > 0
             q, r = divrem(wsize, n)
             splits = cumsum([i <= r ? q + 1 : q for i in 1:n])
             splits = [0; splits[1:end-1]]
