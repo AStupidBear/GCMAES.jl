@@ -1,7 +1,7 @@
 name = "GCMAES"
 uuid = "4aa9d100-eb0f-11e8-15f1-25748831eb3b"
 authors = ["Yao Lu <luyaocns@gmail.com>"]
-version = "0.1.28"
+version = "0.1.29"
 
 [deps]
 BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"

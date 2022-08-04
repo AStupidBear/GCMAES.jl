@@ -113,7 +113,7 @@ end
 
 function splitcomm(comm, n)
     wsize, rank = worldsize(comm), myrank(comm)
-    if wsize > n
+    if wsize >= n
         glbl = MPI.Comm_split(comm, rank % n, rank)
         lcl = MPI.Comm_split(comm, rank ÷ n, rank)
     else
