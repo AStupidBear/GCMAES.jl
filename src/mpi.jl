@@ -102,28 +102,31 @@ function localsize()
     count(hosts .== gethostname())
 end
 
-function pmap(f, xs)
+function pmap(f, xs, comm = nothing)
     isempty(xs) && return map(f, xs)
     if @isdefined(MPI) && MPI.Initialized()
-        comm, n = worldcomm(), length(xs)
-        wsize, rank = worldsize(), myrank()
-        if n >= wsize
-            allgather(map(f, part(xs)))
-        elseif n > 0
-            q, r = divrem(wsize, n)
-            splits = cumsum([i <= r ? q + 1 : q for i in 1:n])
-            splits = [0; splits[1:end-1]]
-            color = searchsortedlast(splits, rank) - 1
-            if localcomm() === MPI.COMM_SELF
-                loc_comm = MPI.Comm_split(comm, color, rank)
-                set_localcomm!(loc_comm)
-            end
-            ys = allgather(f(xs[color + 1]))
-            ys[splits .+ 1]
-        end
+        allgather(map(f, part(xs, comm)), comm)
     else
         Distributed.pmap(f, xs)
     end
+end
+
+function splitcomm(comm, n)
+    wsize, rank = worldsize(comm), myrank(comm)
+    if wsize > n
+        glbl = MPI.Comm_split(comm, rank % n, rank)
+        lcl = MPI.Comm_split(comm, rank ÷ n, rank)
+    else
+        glbl, lcl = comm, MPI.COMM_SELF
+    end
+    return glbl, lcl
+end
+
+function splitcomm!(comm, n)
+    glbl, lcl = splitcomm(comm, n)
+    GCMAES.set_globalcomm!(glbl)
+    GCMAES.set_localcomm!(lcl)
+    return glbl, lcl
 end
 
 const _localcomm = Ref{MPI.Comm}(MPI.COMM_SELF)

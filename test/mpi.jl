@@ -16,6 +16,8 @@ hi = fill(5.12f0, D)
 
 @mpirun GCMAES.minimize(rastrigin, x0, σ0, lo, hi, λ = 200, maxiter = 200, autodiff = true)
 
+@mpirun GCMAES.splitcomm!(MPI.COMM_WORLD, GCMAES.worldsize(MPI.COMM_WORLD) ÷ 4)
+
 @mpirun GCMAES.minimize(x0, σ0, lo, hi, λ = 3, maxiter = 200) do x
     GCMAES.allmean(rastrigin(x), GCMAES.localcomm())
 end
