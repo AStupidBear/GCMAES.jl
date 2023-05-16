@@ -130,6 +130,17 @@ macro master(ex)
     end
 end
 
+macro master(comm, ex)
+    quote
+        @barrier if myrank($comm) == 0
+            res = $(esc(ex))
+            bcast(res, 0, $comm)
+        else
+            bcast(nothing, 0, $comm)
+        end
+    end
+end
+
 function part(x::AbstractArray{T, N}, rank, wsize, dims) where {T, N}
     dims = clamp(dims > 0 ? dims : N + dims + 1, 1, N)
     dsize = size(x, dims)
