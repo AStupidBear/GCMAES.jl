@@ -124,8 +124,8 @@ end
 
 function splitcomm!(comm, n)
     glbl, lcl = splitcomm(comm, n)
-    GCMAES.set_globalcomm!(glbl)
-    GCMAES.set_localcomm!(lcl)
+    set_globalcomm!(glbl)
+    set_localcomm!(lcl)
     return glbl, lcl
 end
 

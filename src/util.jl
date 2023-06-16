@@ -217,3 +217,33 @@ function with_globalcomm(f, comm)
     set_globalcomm!(comm⁻)
     return res
 end
+
+function worldcomm end
+
+function selfcomm end
+
+function allunique end
+
+function allequal end
+
+function allsum end
+
+function allmean end
+
+function allmin end
+
+function allmax end
+
+function allgather end
+
+function gather end
+
+function localsize end
+
+function splitcomm end
+
+function splitcomm! end
+
+function localcomm end
+
+function globalcomm end
