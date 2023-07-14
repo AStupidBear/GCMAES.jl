@@ -95,7 +95,6 @@ barrier() = nothing
 macro barrier(ex) :(barrier(); res = $(esc(ex)); barrier(); res) end
 
 macro mpirun(ex)
-    !inmpi() && return esc(ex)
     quote
         @eval using MPI
         !MPI.Initialized() && MPI.Init()
@@ -107,7 +106,6 @@ macro mpirun(ex)
 end
 
 macro mpiman(ex)
-    !inmpi() && return esc(ex)
     man = gensym()
     quote
         @eval using MPIClusterManagers
