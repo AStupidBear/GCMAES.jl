@@ -31,7 +31,7 @@ end
 
 function allmin(x, comm = nothing)
     if MPI.Initialized()
-        x = MPI.Allreduce(x, MPI.SUM, worldcomm(comm))
+        x = MPI.Allreduce(x, MPI.MIN, worldcomm(comm))
     end
     return x
 end
