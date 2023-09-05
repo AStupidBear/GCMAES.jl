@@ -15,7 +15,7 @@ function __init__()
     @require Elemental="902c3f28-d1ec-5e7e-8399-a24c3845ee38" include("elemental.jl")
 end
 
-mutable struct CMAESOpt{T, F, G, CO, TR}
+mutable struct CMAESOpt{T, F, G, CO, TR, MF}
     # fixed hyper-parameters
     f::F
     g::G
@@ -65,11 +65,13 @@ mutable struct CMAESOpt{T, F, G, CO, TR}
     ls_time::Float64
     ls_dec::T
     file::String
+    mapfun::MF
 end
 
 function CMAESOpt(f, g, x0, σ0, lo, hi;
             λ = 0, constr = NoConstraint(), trans = false, 
-            file = "CMAES.bson", rng = MersenneTwister())
+            file = "CMAES.bson", rng = MersenneTwister(),
+            mapfun = pmap)
     trans = trans == true ? BoxLinQuadTransform(lo, hi) :
             trans == false ? NoTransform() : trans
     x0′ = inverse(trans, x0)
@@ -110,7 +112,7 @@ function CMAESOpt(f, g, x0, σ0, lo, hi;
             x̄, pc, pσ, D, B, BD, C,
             arx, ary, arz, arfitness, arindex,
             xmin, fmin, T[], T[], T[],
-            time(), 0, 0, 0, 0, file)
+            time(), 0, 0, 0, 0, file, mapfun)
 end
 
 function update_candidates!(opt::CMAESOpt)
@@ -120,7 +122,7 @@ function update_candidates!(opt::CMAESOpt)
     opt.arx .= opt.x̄ .+ opt.σ .* opt.ary
     arx_cols = [opt.arx[:, k] for k in 1:opt.λ]
     @assert allequal(sum(opt.arx))
-    opt.pmap_time = @elapsed opt.arfitness .= pmap(opt.f, arx_cols)
+    opt.pmap_time = @elapsed opt.arfitness .= opt.mapfun(opt.f, arx_cols)
     # sort by fitness and compute weighted mean into x̄
     sortperm!(opt.arindex, opt.arfitness)
     opt.arfitness = opt.arfitness[opt.arindex] # minimization
@@ -134,13 +136,13 @@ function update_candidates!(opt::CMAESOpt)
     push!(opt.feqls, feql)
 end
 
-function linesearch(f, x0::Array{T}, Δ) where T
+function linesearch(f, x0::Array{T}, Δ, mapfun = pmap) where T
     nrm = norm(Δ)
     nrm == 0 && return x0, typemax(T), zero(T)
     rmul!(Δ, 1 / nrm)
     αs = T[0.0; 2.0.^(2 - worldsize():0)]
     xs = [x0 .+ α .* Δ for α in αs]
-    fs = pmap(f, xs)
+    fs = mapfun(f, xs)
     fx, i = findmin(fs)
     return xs[i], fx, fs[1] - fx
 end
@@ -148,7 +150,7 @@ end
 function update_mean!(opt::CMAESOpt)
     get(ENV, "GCMAES_USE_GRAD", "1") == "0" && return
     opt.grad_time = @elapsed Δ = -opt.g(opt.x̄)
-    opt.ls_time = @elapsed opt.x̄, fx, opt.ls_dec = linesearch(opt.f, opt.x̄, Δ)
+    opt.ls_time = @elapsed opt.x̄, fx, opt.ls_dec = linesearch(opt.f, opt.x̄, Δ, opt.mapfun)
     if fx < opt.fmin
         opt.xmin .= opt.x̄
         opt.fmin = fx
